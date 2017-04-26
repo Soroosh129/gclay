@@ -67,6 +67,7 @@ static inline void gdev_list_add_prev(struct gdev_list *entry, struct gdev_list 
 	pos->prev = entry;
 }
 
+
 static inline void gdev_list_add(struct gdev_list *entry, struct gdev_list *head)
 {
 	return gdev_list_add_next(entry, head);

@@ -1,0 +1,13 @@
+/usr/local/gdev/lib64/libucuda.so.1.0.0
+/usr/local/gdev/lib64/libucuda.so.1
+/usr/local/gdev/lib64/libucuda.so
+/usr/local/gdev/bin/cudump
+/usr/local/gdev/include/cuda.h
+/usr/local/gdev/lib64/libgdev.so.1.0.0
+/usr/local/gdev/lib64/libgdev.so.1
+/usr/local/gdev/lib64/libgdev.so
+/usr/local/gdev/include/gdev_api.h
+/usr/local/gdev/include/gdev_nvidia_def.h
+/usr/local/gdev/include/gdev_list.h
+/usr/local/gdev/include/gdev_time.h
+/usr/local/gdev/include/gdev_autogen.h

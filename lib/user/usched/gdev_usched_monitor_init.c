@@ -60,6 +60,10 @@ void __gdev_init_device(struct gdev_device *gdev, int id)
     gdev->current_mem = NULL;
     gdev->parent = NULL;//(void *)(gdev - id);
     gdev->priv = NULL;
+	gdev->pctx = NULL;
+	gdev->pvas = NULL;
+	gdev->dma_mem = NULL;
+	gdev->flag_first = 1;
     gdev_time_us(&gdev->credit_com, 0);
     gdev_time_us(&gdev->credit_mem, 0);
     gdev_list_init(&gdev->sched_com_list, NULL);

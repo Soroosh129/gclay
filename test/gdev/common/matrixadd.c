@@ -131,6 +131,7 @@ static inline unsigned __round_up_pow2(unsigned x)
 
 int gdev_test_matrixadd(uint32_t *a, uint32_t *b, uint32_t *c, int n)
 {
+	printf("Initiating matrix add.\n");
 	int i, j, idx;
 	uint32_t id;
 	uint32_t mp_count = 0;
@@ -150,15 +151,16 @@ int gdev_test_matrixadd(uint32_t *a, uint32_t *b, uint32_t *c, int n)
 			b[idx] = j;
 		}
 	}
-
+	printf("Opening context.\n");
 	if (!(handle = gopen(0))) {
 		return -1;
 	}
+	printf("Done opening the context.\n");
 	
 	a_size = n * n * sizeof(uint32_t);
 	b_size = n * n * sizeof(uint32_t);
 	c_size = n * n * sizeof(uint32_t);
-
+	printf("Allocating memory.\n");
 	if (!(a_addr = gmalloc(handle, a_size)))
 		return -1;
 	if (!(b_addr = gmalloc(handle, b_size)))
@@ -184,6 +186,7 @@ int gdev_test_matrixadd(uint32_t *a, uint32_t *b, uint32_t *c, int n)
 		k.cmem[i].size = 0;
 		k.cmem[i].offset = 0;
 	}
+	printf("Done allocating memory.\n");
 	k.cmem_count = GDEV_NVIDIA_CONST_SEGMENT_MAX_COUNT;
 	k.param_size = PARAM_SIZE;
 	k.param_buf = c0;
@@ -211,7 +214,7 @@ int gdev_test_matrixadd(uint32_t *a, uint32_t *b, uint32_t *c, int n)
 	
 	/* FIXME: per-thread warp size may differ from 32. */
 	k.warp_lmem_size = 32 * (k.lmem_size + k.lmem_size_neg) + k.warp_stack_size; 
-	
+	printf("Getting gdev handle\n");	
 	/* FIXME: the number of active warps may differ from 48. */
 	gquery(handle, GDEV_NVIDIA_QUERY_MP_COUNT, (uint64_t *)&mp_count);
 	if (!mp_count) mp_count = 32;
@@ -234,11 +237,16 @@ int gdev_test_matrixadd(uint32_t *a, uint32_t *b, uint32_t *c, int n)
 	if (n % k.block_y != 0)
 		k.grid_y++;
 	k.grid_z = 1;
-	
+	printf("Initiating memory copy to device.\n");	
 	gmemcpy_to_device(handle, k.code_addr, kcode, k.code_size);
 	gmemcpy_to_device(handle, a_addr, a, a_size);
 	gmemcpy_to_device(handle, b_addr, b, b_size);
 	
+	k.mem_size = n * n * sizeof(uint32_t);
+	printf("Starting the benchmark.\n");
+	int cat = gbench(handle, &k, &id);
+	printf("Category was identified as %d.\n",cat);
+        printf("Launching kernel.\n");
 	glaunch(handle, &k, &id);
 	gsync(handle, id, NULL);
 	

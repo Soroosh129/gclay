@@ -625,6 +625,7 @@ EXPORT_SYMBOL(gmemcpy_user_from_device_async);
 EXPORT_SYMBOL(gmemcpy);
 EXPORT_SYMBOL(gmemcpy_async);
 EXPORT_SYMBOL(glaunch);
+EXPORT_SYMBOL(glaunch_async);
 EXPORT_SYMBOL(gsync);
 EXPORT_SYMBOL(gbarrier);
 EXPORT_SYMBOL(gquery);

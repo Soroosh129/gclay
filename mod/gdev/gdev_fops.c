@@ -138,6 +138,8 @@ static int gdev_ioctl
 		return gdev_ioctl_gphysget(handle, arg);
 	case GDEV_IOCTL_GVIRTGET:
 		return gdev_ioctl_gvirtget(handle, arg);
+	case GDEV_IOCTL_GLAUNCH_ASYNC:
+		return gdev_ioctl_glaunch_async(handle, arg);
 	default:
 		GDEV_PRINT("Ioctl command 0x%x is not supported.\n", cmd);
 		return -EINVAL;

@@ -89,7 +89,15 @@ struct gdev_device {
 	gdev_lock_t global_lock;
 	gdev_mutex_t shm_mutex;
 	gdev_mem_t *swap; /* reserved swap memory space */
+	gdev_ctx_t *pctx; /* primary context */
+	gdev_vas_t *pvas; /* primary virtual address space */
+	void *pse; /* allocate a primary scheduling entity. */
+	//void **sched_entity_ptr;
+	gdev_mem_t **dma_mem;
+	uint32_t kernel_health_status;
+	uint32_t flag_first;
 };
+
 
 int gdev_init_device(struct gdev_device *gdev, int id, void *priv);
 void gdev_exit_device(struct gdev_device *gdev);
@@ -102,6 +110,7 @@ extern int gdev_count;
 extern int gdev_vcount;
 extern struct gdev_device *gdevs;
 extern struct gdev_device *gdev_vds;
+
 extern int VCOUNT_LIST[GDEV_PHYSICAL_DEVICE_MAX_COUNT];
 
 #endif

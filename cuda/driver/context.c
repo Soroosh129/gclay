@@ -25,6 +25,7 @@
  */
 
 #include "cuda.h"
+//#include "gdev_sched.h"
 #include "gdev_cuda.h"
 #include "gdev_api.h"
 #include "gdev_list.h"
@@ -91,13 +92,13 @@ LOCK_T gdev_ctx_list_lock;
  * CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_DEVICE, 
  * CUDA_ERROR_INVALID_VALUE, CUDA_ERROR_OUT_OF_MEMORY, CUDA_ERROR_UNKNOWN 
  */
-CUresult cuCtxCreate_v2(CUcontext *pctx, unsigned int flags, CUdevice dev)
-{
+CUresult cuCtxCreate_v2(CUcontext *pctx, unsigned int flags, CUdevice dev, int consistant_gdev, int kernel_category) {
 	CUresult res;
 	struct CUctx_st *ctx;
 	struct gdev_cuda_info *cuda_info;
 	Ghandle handle;
-	int minor = (int)dev;
+	Ghandle tmp_handle;
+	int minor = (int) dev;
 	int mp_count;
 
 	if (!gdev_initialized)
@@ -107,99 +108,125 @@ CUresult cuCtxCreate_v2(CUcontext *pctx, unsigned int flags, CUdevice dev)
 	if (!pctx)
 		return CUDA_ERROR_INVALID_VALUE;
 
-	if (!(ctx = (CUcontext)MALLOC(sizeof(*ctx)))) {
+	if (!(ctx = (CUcontext) MALLOC(sizeof(*ctx)))) {
 		res = CUDA_ERROR_OUT_OF_MEMORY;
 		goto fail_malloc_ctx;
 	}
 
-	if (!(handle = gopen(minor))) {
-		res = CUDA_ERROR_UNKNOWN;
-		goto fail_open_gdev;
+	GDEV_DPRINT("Beginning the context creation.\n");
+	if(!consistant_gdev)
+	{
+		if (!(handle = gopen(minor, kernel_category))) {
+			res = CUDA_ERROR_UNKNOWN;
+			goto fail_open_gdev;
+		}
+		GDEV_DPRINT("gdev not consistant.\n");
+		ctx->gdev_handle = handle;
+		GDEV_DPRINT("cuCtxCreate: setting gdev handle to %x.\n", ctx->gdev_handle);
+	}
+	else
+	{
+		GDEV_DPRINT("cuCtxCreate: gdev handle is %x.\n", (*pctx)->gdev_handle);
+		if (!(handle = gopen_consistant(minor, (*pctx)->gdev_handle, kernel_category))) {
+					res = CUDA_ERROR_UNKNOWN;
+					goto fail_open_gdev;
+			}
+		ctx->gdev_handle = handle;
+		GDEV_DPRINT("gdev is consistant.\n");
 	}
 
-	/* save the Gdev handle. */
-	ctx->gdev_handle = handle;
+	GDEV_DPRINT("cuCtxCreate: gdev handle is %x.\n", handle);
+	if (true) {
+		/* save the Gdev handle. */
 
-	/* save the current context to the stack, if necessary. */
-	gdev_list_init(&ctx->list_entry, ctx);
+		/* save the current context to the stack, if necessary. */
+		gdev_list_init(&ctx->list_entry, ctx);
 
-	/* initialize context synchronization list. */
-	gdev_list_init(&ctx->sync_list, NULL);
-	/* initialize context event list. */
-	gdev_list_init(&ctx->event_list, NULL);
+		/* initialize context synchronization list. */
+		gdev_list_init(&ctx->sync_list, NULL);
+		/* initialize context event list. */
+		gdev_list_init(&ctx->event_list, NULL);
 
-	/* we will trace # of kernels. */
-	ctx->launch_id = 0;
-	/* save the device ID. */
-	ctx->minor = minor;
+		/* we will trace # of kernels. */
+		ctx->launch_id = 0;
+		/* save the device ID. */
+		ctx->minor = minor;
 
-	ctx->flags = flags;
-	ctx->usage = 0;
-	ctx->destroyed = 0;
-	ctx->owner = GETTID();
-	ctx->user = 0;
+		ctx->flags = flags;
+		ctx->usage = 0;
+		ctx->destroyed = 0;
+		ctx->owner = GETTID();
+		ctx->user = 0;
 
-	/* set to the current context. */
-	res = cuCtxPushCurrent(ctx);
-	if (res != CUDA_SUCCESS)
-		goto fail_push_current;
+		/* set to the current context. */
+		res = cuCtxPushCurrent(ctx);
+		if (res != CUDA_SUCCESS)
+			goto fail_push_current;
 
-	/* get the CUDA-specific device information. */
-	cuda_info = &ctx->cuda_info;
-	if (gquery(handle, GDEV_QUERY_CHIPSET, &cuda_info->chipset)) {
-		res = CUDA_ERROR_UNKNOWN;
-		goto fail_query_chipset;
-	}
+
+		GDEV_DPRINT("Beginning gquery.\n");
+		/* get the CUDA-specific device information. */
+		cuda_info = &ctx->cuda_info;
+		if (gquery(handle, GDEV_QUERY_CHIPSET, &cuda_info->chipset)) {
+			res = CUDA_ERROR_UNKNOWN;
+			goto fail_query_chipset;
+		}
 #if 0
-	if (gquery(handle, GDEV_NVIDIA_QUERY_MP_COUNT, &cuda_info->mp_count)) {
-		res = CUDA_ERROR_UNKNOWN;
-		goto fail_query_mp_count;
-	}
+		if (gquery(handle, GDEV_NVIDIA_QUERY_MP_COUNT, &cuda_info->mp_count)) {
+			res = CUDA_ERROR_UNKNOWN;
+			goto fail_query_mp_count;
+		}
 #else
-	if ((res = cuDeviceGetAttribute(&mp_count,
-		CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, dev))
-		!= CUDA_SUCCESS) {
-		goto fail_query_mp_count;
-	}
-	cuda_info->mp_count = mp_count;
+		GDEV_DPRINT("Beginning cuDeviceGetAttribute.\n");
+		if(!consistant_gdev)
+		{
+			if ((res = cuDeviceGetAttribute(&mp_count,
+					CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, dev, consistant_gdev, handle))
+					!= CUDA_SUCCESS) {
+				goto fail_query_mp_count;
+			}
+			cuda_info->mp_count = mp_count;
+		}
 #endif
 
-	/* FIXME: per-thread warp size and active warps */
-	switch (cuda_info->chipset & 0xf0) {
-	case 0xc0:
-		cuda_info->warp_count = 48;
-		cuda_info->warp_size = 32;
-		break;
-	case 0x50:
-		cuda_info->warp_count = 32;
-		cuda_info->warp_size = 32;
-		break;
-	default:
-		cuda_info->warp_count = 48;
-		cuda_info->warp_size = 32;
+		/* FIXME: per-thread warp size and active warps */
+		switch (cuda_info->chipset & 0xf0) {
+		case 0xc0:
+			cuda_info->warp_count = 48;
+			cuda_info->warp_size = 32;
+			break;
+		case 0x50:
+			cuda_info->warp_count = 32;
+			cuda_info->warp_size = 32;
+			break;
+		default:
+			cuda_info->warp_count = 48;
+			cuda_info->warp_size = 32;
+		}
+
+		*pctx = ctx;
+
+	} else {
+
 	}
 
-	*pctx = ctx;
-
+	GDEV_DPRINT("Finished context creation.\n");
 	return CUDA_SUCCESS;
 
-fail_query_mp_count:
-fail_query_chipset:
-	cuCtxPopCurrent(&ctx);
-fail_push_current:
-	gclose(handle);
-fail_open_gdev:
+#ifndef GDEV_SCHED_DISABLED
+	fail_se: __free_dma(dma_mem, h->pipeline_count);
+#endif
+	fail_query_mp_count: fail_query_chipset: cuCtxPopCurrent(&ctx);
+	fail_push_current: gclose(handle);
+	fail_open_gdev:
 	FREE(ctx);
-fail_malloc_ctx:
-	return res;
+	fail_malloc_ctx: return res;
 }
-CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
-{
-	return cuCtxCreate_v2(pctx, flags, dev);
+CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev, int consistant_gdev, int kernel_category) {
+	return cuCtxCreate_v2(pctx, flags, dev, consistant_gdev, kernel_category);
 }
 
-static int freeDestroyedContext(CUcontext ctx)
-{
+static int freeDestroyedContext(CUcontext ctx) {
 	if (ctx->usage > 0)
 		return CUDA_ERROR_INVALID_CONTEXT;
 
@@ -224,8 +251,7 @@ static int freeDestroyedContext(CUcontext ctx)
  * CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED, 
  * CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_VALUE 
  */
-CUresult cuCtxDestroy(CUcontext ctx)
-{
+CUresult cuCtxDestroy(CUcontext ctx) {
 	struct CUctx_st *cur = NULL;
 	CUresult res;
 
@@ -251,14 +277,12 @@ CUresult cuCtxDestroy(CUcontext ctx)
 	return CUDA_SUCCESS;
 }
 
-CUresult cuCtxAttach(CUcontext *pctx, unsigned int flags)
-{
+CUresult cuCtxAttach(CUcontext *pctx, unsigned int flags) {
 	GDEV_PRINT("cuCtxAttach: Not Implemented Yet\n");
 	return CUDA_SUCCESS;
 }
 
-CUresult cuCtxDetach(CUcontext ctx)
-{
+CUresult cuCtxDetach(CUcontext ctx) {
 	GDEV_PRINT("cuCtxDetach: Not Implemented Yet\n");
 	return CUDA_SUCCESS;
 }
@@ -291,8 +315,7 @@ CUresult cuCtxDetach(CUcontext ctx)
  *     	cuCtxPopCurrent, cuCtxPushCurrent, cuCtxSetCacheConfig, cuCtxSetLimit,
  *     	cuCtxSynchronize 
  */
-CUresult cuCtxGetApiVersion(CUcontext ctx, unsigned int *version)
-{
+CUresult cuCtxGetApiVersion(CUcontext ctx, unsigned int *version) {
 	*version = 3020; /* FIXME */
 
 	return CUDA_SUCCESS;
@@ -333,8 +356,7 @@ CUresult cuCtxGetApiVersion(CUcontext ctx, unsigned int *version)
  *     cuCtxGetLimit, cuCtxPopCurrent, cuCtxPushCurrent, cuCtxSetCacheConfig,
  *     cuCtxSetLimit, cuCtxSynchronize, cuFuncSetCacheConfig 
  */
-CUresult cuCtxGetCacheConfig(CUfunc_cache *pconfig)
-{
+CUresult cuCtxGetCacheConfig(CUfunc_cache *pconfig) {
 	CUresult res;
 	struct CUctx_st *ctx;
 
@@ -370,8 +392,7 @@ CUresult cuCtxGetCacheConfig(CUfunc_cache *pconfig)
  * See also:
  *     	cuCtxSetCurrent, cuCtxCreate, cuCtxDestroy 
  */
-CUresult cuCtxGetCurrent(CUcontext *pctx)
-{
+CUresult cuCtxGetCurrent(CUcontext *pctx) {
 	struct CUctx_st *ctx = NULL;
 	CUresult res;
 
@@ -382,7 +403,8 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
 
 	LOCK(&gdev_ctx_list_lock);
 
-	gdev_list_for_each(ctx, &gdev_ctx_list, list_entry) {
+	gdev_list_for_each(ctx, &gdev_ctx_list, list_entry)
+	{
 		if (ctx->user == GETTID())
 			break;
 	}
@@ -424,8 +446,7 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
  *     	cuCtxGetLimit, cuCtxPopCurrent, cuCtxPushCurrent, cuCtxSetCacheConfig,
  *     	cuCtxSetLimit, cuCtxSynchronize 
  */
-CUresult cuCtxGetDevice(CUdevice *device)
-{
+CUresult cuCtxGetDevice(CUdevice *device) {
 	CUresult res;
 	struct CUctx_st *ctx;
 
@@ -469,8 +490,7 @@ CUresult cuCtxGetDevice(CUdevice *device)
  *     cuCtxGetDevice, cuCtxPopCurrent, cuCtxPushCurrent, cuCtxSetCacheConfig,
  *     cuCtxSetLimit, cuCtxSynchronize 
  */
-CUresult cuCtxGetLimit(size_t *pvalue, CUlimit limit)
-{
+CUresult cuCtxGetLimit(size_t *pvalue, CUlimit limit) {
 	CUresult res;
 	struct CUctx_st *ctx;
 
@@ -506,8 +526,7 @@ CUresult cuCtxGetLimit(size_t *pvalue, CUlimit limit)
  * CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED, 
  * CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_VALUE 
  */
-CUresult cuCtxPushCurrent(CUcontext ctx)
-{
+CUresult cuCtxPushCurrent(CUcontext ctx) {
 	if (!gdev_initialized)
 		return CUDA_ERROR_NOT_INITIALIZED;
 	if (!ctx)
@@ -550,8 +569,7 @@ CUresult cuCtxPushCurrent(CUcontext ctx)
  * CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED, 
  * CUDA_ERROR_INVALID_CONTEXT 
  */
-CUresult cuCtxPopCurrent(CUcontext *pctx)
-{
+CUresult cuCtxPopCurrent(CUcontext *pctx) {
 	struct CUctx_st *cur = NULL;
 	CUresult res;
 
@@ -588,7 +606,7 @@ CUresult cuCtxPopCurrent(CUcontext *pctx)
 	}
 
 	*pctx = cur;
-	
+
 	return CUDA_SUCCESS;
 }
 
@@ -634,8 +652,7 @@ CUresult cuCtxPopCurrent(CUcontext *pctx)
  *     cuCtxGetDevice, cuCtxGetLimit, cuCtxPopCurrent, cuCtxPushCurrent,
  *     cuCtxSetLimit, cuCtxSynchronize, cuFuncSetCacheConfig 
  */
-CUresult cuCtxSetCacheConfig(CUfunc_cache config)
-{
+CUresult cuCtxSetCacheConfig(CUfunc_cache config) {
 	CUresult res;
 	struct CUctx_st *ctx;
 
@@ -675,8 +692,7 @@ CUresult cuCtxSetCacheConfig(CUfunc_cache config)
  * See also:
  *     cuCtxGetCurrent, cuCtxCreate, cuCtxDestroy 
  */
-CUresult cuCtxSetCurrent(CUcontext ctx)
-{
+CUresult cuCtxSetCurrent(CUcontext ctx) {
 	CUresult res;
 	CUcontext cur;
 
@@ -746,8 +762,7 @@ CUresult cuCtxSetCurrent(CUcontext ctx)
  *     cuCtxGetDevice, cuCtxGetLimit, cuCtxPopCurrent, cuCtxPushCurrent,
  *     cuCtxSetCacheConfig, cuCtxSynchronize 
  */
-CUresult cuCtxSetLimit(CUlimit limit, size_t value)
-{
+CUresult cuCtxSetLimit(CUlimit limit, size_t value) {
 	CUresult res;
 	struct CUctx_st *ctx;
 
@@ -771,8 +786,7 @@ CUresult cuCtxSetLimit(CUlimit limit, size_t value)
  * CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED,
  * CUDA_ERROR_INVALID_CONTEXT 
  */
-CUresult cuCtxSynchronize(void)
-{
+CUresult cuCtxSynchronize(void) {
 	struct CUctx_st *cur = NULL;
 	CUresult res;
 	Ghandle handle;
@@ -792,13 +806,14 @@ CUresult cuCtxSynchronize(void)
 
 #if 0
 	if (gdev_list_empty(&cur->sync_list))
-		return CUDA_SUCCESS;
+	return CUDA_SUCCESS;
 #endif
 
 	handle = cur->gdev_handle;
 
 	/* synchronize with all kernels. */
-	gdev_list_for_each(f, &cur->sync_list, list_entry) {
+	gdev_list_for_each(f, &cur->sync_list, list_entry)
+	{
 		/* if timeout is required, specify gdev_time value instead of NULL. */
 		if (gsync(handle, f->id, NULL))
 			return CUDA_ERROR_UNKNOWN;

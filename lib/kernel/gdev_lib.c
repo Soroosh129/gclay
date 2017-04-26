@@ -87,6 +87,7 @@ struct gdev_handle *gopen(int minor)
 		return NULL;
 	}
 
+	printf("We are in the lib verision of gdev.\n");
 	return h;
 }
 
@@ -340,6 +341,17 @@ int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
 	launch.id = id;
 
 	return ioctl(fd, GDEV_IOCTL_GLAUNCH, &launch);
+}
+
+int glaunch_async(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
+{
+	struct gdev_ioctl_launch launch;
+	int fd = h->fd;
+
+	launch.kernel = kernel;
+	launch.id = id;
+
+	return ioctl(fd, GDEV_IOCTL_GLAUNCH_ASYNC, &launch);
 }
 
 int gsync(struct gdev_handle *h, uint32_t id, struct gdev_time *timeout)

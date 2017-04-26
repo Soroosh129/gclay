@@ -355,6 +355,26 @@ int gdev_ioctl_glaunch(Ghandle handle, unsigned long arg)
 	return 0;
 }
 
+int gdev_ioctl_glaunch_async(Ghandle handle, unsigned long arg)
+{
+	struct gdev_ioctl_launch launch;
+	struct gdev_kernel kernel;
+	uint32_t id;
+
+	if (copy_from_user(&launch, (void __user *)arg, sizeof(launch)))
+		return -EFAULT;
+
+	if (copy_from_user(&kernel, (void __user *)launch.kernel, sizeof(kernel)))
+		return -EFAULT;
+
+	glaunch_async(handle, &kernel, &id);
+
+	if (copy_to_user((void __user *)launch.id, &id, sizeof(id)))
+		return -EFAULT;
+
+	return 0;
+}
+
 int gdev_ioctl_gsync(Ghandle handle, unsigned long arg)
 {
 	struct gdev_ioctl_sync sync;

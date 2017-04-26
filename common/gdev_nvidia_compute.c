@@ -89,14 +89,51 @@ uint32_t gdev_launch(struct gdev_ctx *ctx, struct gdev_kernel *kern)
 	   the QUERY method, i.e., we have to submit the QUERY method 
 	   explicitly after the kernel is launched. */
 	compute->fence_reset(ctx, seq);
+	GDEV_DPRINT("Launching kernel %x in sync mode.\n",kern);
 	compute->launch(ctx, kern);
 	compute->fence_write(ctx, GDEV_OP_COMPUTE, seq);
 
+
 #ifndef GDEV_SCHED_DISABLED
 	/* set an interrupt to be caused when compute done. */
+	GDEV_DPRINT("Notifyiing the scheduler about context %x.\n",ctx);
 	compute->notify_intr(ctx);
+#else
+	GDEV_DPRINT("Scheduler is disabled.\n");
 #endif
 	
+	return seq;
+}
+
+uint32_t gdev_launch_async(struct gdev_ctx *ctx, struct gdev_kernel *kern)
+{
+	GDEV_DPRINT("Launching kernel %x in async mode.\n",kern);
+	struct gdev_vas *vas = ctx->vas;
+	struct gdev_device *gdev = vas->gdev;
+	struct gdev_mem *dev_swap = gdev_swap_get(gdev);
+	struct gdev_compute *compute = gdev_compute_get(gdev);
+	uint32_t seq;
+
+	/* evict data saved in device swap memory space to host memory. */
+	if (dev_swap && dev_swap->shm->holder) {
+		struct gdev_mem *mem = dev_swap->shm->holder;
+		gdev_shm_evict_conflict(ctx, mem->swap_mem); /* don't use gdev->swap */
+		dev_swap->shm->holder = NULL;
+	}
+
+	seq = 0;
+	compute->membar(ctx);
+	/* it's important to emit a fence *after* launch():
+	   the LAUNCH method of the PGRAPH engine is not associated with
+	   the QUERY method, i.e., we have to submit the QUERY method
+	   explicitly after the kernel is launched. */
+	compute->launch(ctx, kern);
+
+#ifndef GDEV_SCHED_DISABLED
+	/* set an interrupt to be caused when compute done. */
+	//compute->notify_intr(ctx);
+#endif
+
 	return seq;
 }
 
@@ -148,11 +185,7 @@ uint32_t gdev_memcpy_async(struct gdev_ctx *ctx, uint64_t dst_addr, uint64_t src
 	   the QUERY method, i.e., if QUERY is set, the sequence will be 
 	   written to the specified address when the data are transfered. */
 	compute->fence_reset(ctx, seq);
-	if( (gdev->chipset & 0xf0) >= 0xe0) {
-	    compute->memcpy_async(ctx, dst_addr, src_addr, size);
-	    compute->fence_write(ctx, GDEV_OP_COMPUTE /* == COMPUTE */, seq);
-	}
-	else {
+	if( (gdev->chipset & 0xf0) < 0xe0) {
 	    compute->fence_write(ctx, GDEV_OP_MEMCPY_ASYNC /* == PCOPY0 */, seq);
 	    compute->memcpy_async(ctx, dst_addr, src_addr, size);
 	}

@@ -47,6 +47,7 @@ int gdev_ioctl_gmemcpy_from_device_async(Ghandle h, unsigned long arg);
 int gdev_ioctl_gmemcpy(Ghandle h, unsigned long arg);
 int gdev_ioctl_gmemcpy_async(Ghandle h, unsigned long arg);
 int gdev_ioctl_glaunch(Ghandle h, unsigned long arg);
+int gdev_ioctl_glaunch_async(Ghandle h, unsigned long arg);
 int gdev_ioctl_gsync(Ghandle h, unsigned long arg);
 int gdev_ioctl_gbarrier(Ghandle h, unsigned long arg);
 int gdev_ioctl_gquery(Ghandle h, unsigned long arg);

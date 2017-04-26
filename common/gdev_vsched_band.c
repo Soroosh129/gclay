@@ -63,16 +63,19 @@ static void __gdev_vsched_band_yield_chance(void)
 
 static void gdev_vsched_band_schedule_compute(struct gdev_sched_entity *se)
 {
+	GDEV_DPRINT("Starting band scheduling with sched_entity %x.\n",se);
 	struct gdev_device *gdev = se->gdev;
 	struct gdev_device *phys = gdev_phys_get(gdev);
 
 	if (!phys)
 		return;
-
+	GDEV_DPRINT("Band: got physical device.\n");
+	GDEV_DPRINT("Band: Gdev is %x.\n", gdev);
 resched:
 	/* yielding if necessary. */
 	if (gdev_time_lez(&gdev->credit_com) && (gdev->com_bw_used > gdev->com_bw)
 		&& !__gdev_is_alone(gdev)) {
+		GDEV_DPRINT("Band: Yielding.\n");
 		gdev_lock(&phys->sched_com_lock);
 		if (gdev_current_com_get(phys)== gdev) {
 			gdev_current_com_set(phys,NULL);
@@ -88,6 +91,8 @@ resched:
 		else
 			gdev_unlock(&phys->sched_com_lock);
 	}
+
+	GDEV_DPRINT("Band: Half way through.\n");
 
 	gdev_lock(&phys->sched_com_lock);
 
@@ -112,6 +117,8 @@ resched:
 
 		//printk("Gdev#%d Ctx#%d Run\n", gdev->id, se->ctx->cid);
 	}
+	GDEV_DPRINT("Band: Done.\n");
+
 }
 
 static struct gdev_device *gdev_vsched_band_select_next_compute(struct gdev_device *gdev)

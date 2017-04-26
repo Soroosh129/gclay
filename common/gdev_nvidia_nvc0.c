@@ -215,7 +215,7 @@ static int nvc0_launch(struct gdev_ctx *ctx, struct gdev_kernel *k)
 	__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_COMPUTE, 0xa08, 1);
 	__gdev_out_ring(ctx, 0); /* ??? */
 
-	/* kernel lauching. */
+	/* kernel launching. */
 	__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_COMPUTE, 0x368, 1);
 	__gdev_out_ring(ctx, 0x1000 /* 0x0 */); /* LAUNCH */
 	__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_COMPUTE, 0xa04, 1);
@@ -265,14 +265,12 @@ static void nvc0_fence_write(struct gdev_ctx *ctx, int subch, uint32_t sequence)
 		__gdev_out_ring(ctx, vm_addr); /* QUERY_ADDRESS LOW */
 		__gdev_out_ring(ctx, sequence); /* QUERY_COUNTER */
 		break;
-#ifdef GDEV_NVIDIA_USE_PCOPY1
 	case GDEV_SUBCH_NV_PCOPY1:
 		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x338, 3);
 		__gdev_out_ring(ctx, vm_addr >> 32); /* QUERY_ADDRESS HIGH */
 		__gdev_out_ring(ctx, vm_addr); /* QUERY_ADDRESS LOW */
 		__gdev_out_ring(ctx, sequence); /* QUERY_COUNTER */
 		break;
-#endif
 	}
 
 	__gdev_fire_ring(ctx);
@@ -370,6 +368,51 @@ static void nvc0_memcpy_pcopy0(struct gdev_ctx *ctx, uint64_t dst_addr, uint64_t
 		__gdev_out_ring(ctx, rem_size); /* XCNT */
 		__gdev_out_ring(ctx, 1); /* YCNT */
 		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY0, 0x300, 1);
+		__gdev_out_ring(ctx, mode); /* EXEC */
+
+		__gdev_fire_ring(ctx);
+	}
+}
+
+static void nvc0_memcpy_pcopy1(struct gdev_ctx *ctx, uint64_t dst_addr, uint64_t src_addr, uint32_t size)
+{
+	uint32_t mode = 0x3110; /* QUERY_SHORT|QUERY|SRC_LINEAR|DST_LINEAR */
+	uint32_t pitch = 0x8000; /* make it configurable... */
+	uint32_t ycnt = size / pitch;
+	uint32_t rem_size = size - pitch * ycnt;
+	size -= rem_size;
+
+	if (size) {
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x30c, 6);
+		__gdev_out_ring(ctx, src_addr >> 32); /* SRC_ADDRESS_HIGH */
+		__gdev_out_ring(ctx, src_addr); /* SRC_ADDRESS_LOW */
+		__gdev_out_ring(ctx, dst_addr >> 32); /* DST_ADDRESS_HIGH */
+		__gdev_out_ring(ctx, dst_addr); /* DST_ADDRESS_LOW */
+		__gdev_out_ring(ctx, pitch); /* SRC_PITCH */
+		__gdev_out_ring(ctx, pitch); /* DST_PITCH */
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x324, 2);
+		__gdev_out_ring(ctx, pitch); /* XCNT */
+		__gdev_out_ring(ctx, ycnt); /* YCNT */
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x300, 1);
+		__gdev_out_ring(ctx, mode); /* EXEC */
+
+		__gdev_fire_ring(ctx);
+	}
+
+	if (rem_size) {
+		src_addr += size;
+		dst_addr += size;
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x30c, 6);
+		__gdev_out_ring(ctx, src_addr >> 32); /* SRC_ADDRESS_HIGH */
+		__gdev_out_ring(ctx, src_addr); /* SRC_ADDRESS_LOW */
+		__gdev_out_ring(ctx, dst_addr >> 32); /* DST_ADDRESS_HIGH */
+		__gdev_out_ring(ctx, dst_addr); /* DST_ADDRESS_LOW */
+		__gdev_out_ring(ctx, 0); /* SRC_PITCH */
+		__gdev_out_ring(ctx, 0); /* DST_PITCH */
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x324, 2);
+		__gdev_out_ring(ctx, rem_size); /* XCNT */
+		__gdev_out_ring(ctx, 1); /* YCNT */
+		__gdev_begin_ring_nvc0(ctx, GDEV_SUBCH_NV_PCOPY1, 0x300, 1);
 		__gdev_out_ring(ctx, mode); /* EXEC */
 
 		__gdev_fire_ring(ctx);

@@ -86,6 +86,7 @@ struct gdev_kernel {
 	uint32_t block_x; /* block dimension X */
 	uint32_t block_y; /* block dimension Y */
 	uint32_t block_z; /* block dimension Z */
+	uint64_t mem_size;
 	/* symbol of kernel, for debugging and profiling (Barra back-end) */
 	char* name;
 };

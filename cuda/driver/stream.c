@@ -66,7 +66,7 @@ CUresult cuStreamCreate(CUstream *phStream, unsigned int Flags)
 	
 	/* create another channel for the stream. */
 	minor = ctx->minor;
-	if (!(handle = gopen(minor))) {
+	if (!(handle = gopen(minor, -1))) {
 		res = CUDA_ERROR_UNKNOWN;
 		goto fail_gopen;
 	}
@@ -76,6 +76,7 @@ CUresult cuStreamCreate(CUstream *phStream, unsigned int Flags)
 	gdev_list_init(&stream->sync_list, NULL);	
 	gdev_list_init(&stream->event_list, NULL);	
 	stream->wait = 0;
+	stream->number = Flags;
 
 	*phStream = stream;
 

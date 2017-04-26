@@ -1,0 +1,1 @@
+cmd_/home/soroosh/Project/gdev/release/mod/gdev/gdev.ko := ld -r -m elf_x86_64 -T /home/soroosh/Project/ubuntu-trusty/scripts/module-common.lds --build-id  -o /home/soroosh/Project/gdev/release/mod/gdev/gdev.ko /home/soroosh/Project/gdev/release/mod/gdev/gdev.o /home/soroosh/Project/gdev/release/mod/gdev/gdev.mod.o

@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+
+
 #include "gdev_api.h"
 #include "gdev_device.h"
 #include "gdev_sched.h"
@@ -35,6 +37,7 @@
 
 /**
  * Gdev handle struct: not visible to outside.
+ * A single handle that contains the only context on each virtual GPU.
  */
 struct gdev_handle {
 	struct gdev_device *gdev; /* gdev handle object. */
@@ -47,30 +50,29 @@ struct gdev_handle {
 	int dev_id; /* device ID. */
 };
 
-static gdev_mem_t** __malloc_dma(gdev_vas_t *vas, uint64_t size, int p_count)
-{
+static gdev_mem_t** __malloc_dma(gdev_vas_t *vas, uint64_t size, int p_count) {
 	gdev_mem_t **dma_mem;
 	int i;
 
 	dma_mem = MALLOC(sizeof(*dma_mem) * p_count);
 	if (!dma_mem)
-		return NULL;
+		return NULL ;
 
 	for (i = 0; i < p_count; i++) {
 		dma_mem[i] = gdev_mem_alloc(vas, size, GDEV_MEM_DMA);
 		if (!dma_mem[i]) {
-			while(--i >= 0)
+			while (--i >= 0)
 				gdev_mem_free(dma_mem[i]);
 			FREE(dma_mem);
-			return NULL;
+			return NULL ;
 		}
 	}
+	GDEV_DPRINT("Allocated DMA memory.\n");
 
 	return dma_mem;
 }
 
-static void __free_dma(gdev_mem_t **dma_mem, int p_count)
-{
+static void __free_dma(gdev_mem_t **dma_mem, int p_count) {
 	int i;
 
 	for (i = 0; i < p_count; i++)
@@ -82,8 +84,7 @@ static void __free_dma(gdev_mem_t **dma_mem, int p_count)
 /**
  * a wrapper of memcpy().
  */
-static int __f_memcpy(void *dst, const void *src, uint32_t size)
-{
+static int __f_memcpy(void *dst, const void *src, uint32_t size) {
 	memcpy(dst, src, size);
 	return 0;
 }
@@ -91,8 +92,7 @@ static int __f_memcpy(void *dst, const void *src, uint32_t size)
 /**
  * a wrapper of copy_from_user() - it wraps memcpy() for user-space.
  */
-static int __f_cfu(void *dst, const void *src, uint32_t size)
-{
+static int __f_cfu(void *dst, const void *src, uint32_t size) {
 	if (COPY_FROM_USER(dst, src, size))
 		return -EFAULT;
 	return 0;
@@ -101,8 +101,7 @@ static int __f_cfu(void *dst, const void *src, uint32_t size)
 /**
  * a wrapper of copy_to_user() - it wraps memcpy() for user-space.
  */
-static int __f_ctu(void *dst, const void *src, uint32_t size)
-{
+static int __f_ctu(void *dst, const void *src, uint32_t size) {
 	if (COPY_TO_USER(dst, src, size))
 		return -EFAULT;
 	return 0;
@@ -112,13 +111,15 @@ static int __f_ctu(void *dst, const void *src, uint32_t size)
  * copy host buffer to device memory with pipelining.
  * @host_copy is either memcpy() or copy_from_user().
  */
-static int __gmemcpy_to_device_p(gdev_ctx_t *ctx, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t ch_size, int p_count, gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_to_device_p(gdev_ctx_t *ctx, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t ch_size, int p_count,
+		gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t)) {
+	GDEV_DPRINT("Beginning to transfer to device.\n");
 	uint64_t rest_size = size;
 	uint64_t offset;
-	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = {0};
-	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = {0};
-	uint32_t fence[GDEV_PIPELINE_MAX_COUNT] = {0};
+	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	uint32_t fence[GDEV_PIPELINE_MAX_COUNT] = { 0 };
 	uint32_t dma_size;
 	int ret = 0;
 	int i;
@@ -136,11 +137,12 @@ static int __gmemcpy_to_device_p(gdev_ctx_t *ctx, uint64_t dst_addr, const void 
 			/* HtoH */
 			if (fence[i])
 				gdev_poll(ctx, fence[i], NULL);
-			ret = host_copy(dma_buf[i], src_buf+offset, dma_size);
+			ret = host_copy(dma_buf[i], src_buf + offset, dma_size);
 			if (ret)
 				goto end;
 			/* HtoD */
-			fence[i] = gdev_memcpy(ctx, dst_addr+offset, dma_addr[i], dma_size);
+			fence[i] = gdev_memcpy(ctx, dst_addr + offset, dma_addr[i],
+					dma_size);
 			if (rest_size == dma_size) {
 				/* wait for the last fence, and go out! */
 				gdev_poll(ctx, fence[i], NULL);
@@ -151,20 +153,21 @@ static int __gmemcpy_to_device_p(gdev_ctx_t *ctx, uint64_t dst_addr, const void 
 		}
 	}
 
-end:
-	return ret;
+	end: return ret;
 }
 
 /**
  * copy host buffer to device memory without pipelining.
  * @host_copy is either memcpy() or copy_from_user().
  */
-static int __gmemcpy_to_device_np(gdev_ctx_t *ctx, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t ch_size, gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_to_device_np(gdev_ctx_t *ctx, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t ch_size, gdev_mem_t **bmem,
+		int (*host_copy)(void*, const void*, uint32_t)) {
+	GDEV_DPRINT("Beginning to transfer to device.\n");
 	uint64_t rest_size = size;
 	uint64_t offset;
-	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = {0};
-	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = {0};
+	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = { 0 };
 	uint32_t fence;
 	uint32_t dma_size;
 	int ret = 0;
@@ -185,71 +188,71 @@ static int __gmemcpy_to_device_np(gdev_ctx_t *ctx, uint64_t dst_addr, const void
 		offset += dma_size;
 	}
 
-end:
-	return ret;
+	end: return ret;
 }
 
 /**
  * copy host DMA buffer to device memory.
  */
-static int __gmemcpy_dma_to_device(gdev_ctx_t *ctx, uint64_t dst_addr, uint64_t src_addr, uint64_t size, uint32_t *id)
-{
+static int __gmemcpy_dma_to_device(gdev_ctx_t *ctx, uint64_t dst_addr,
+		uint64_t src_addr, uint64_t size, uint32_t *id) {
 	uint32_t fence;
 
 	/* we don't break data into chunks if copying directly from dma memory. 
-	   if @id == NULL, it means memcpy is synchronous. */
+	 if @id == NULL, it means memcpy is synchronous. */
 	if (!id) {
 		fence = gdev_memcpy(ctx, dst_addr, src_addr, size);
 		gdev_poll(ctx, fence, NULL);
-	}
-	else {
+	} else {
 		fence = gdev_memcpy_async(ctx, dst_addr, src_addr, size);
 		*id = fence;
 	}
-	
+
 	return 0;
 }
 
 /**
  * a wrapper function of __gmemcpy_to_device().
  */
-static int __gmemcpy_to_device_locked(gdev_ctx_t *ctx, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t *id, uint32_t ch_size, int p_count, gdev_vas_t *vas, gdev_mem_t *mem, gdev_mem_t **dma_mem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_to_device_locked(gdev_ctx_t *ctx, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t *id, uint32_t ch_size,
+		int p_count, gdev_vas_t *vas, gdev_mem_t *mem, gdev_mem_t **dma_mem,
+		int (*host_copy)(void*, const void*, uint32_t)) {
+
+	GDEV_DPRINT("Beginning to transfer to device in locked mode.\n");
 	gdev_mem_t *hmem;
 	gdev_mem_t **bmem;
 	int ret;
 
 	if (size <= 4 && mem->map) {
-		gdev_write32(mem, dst_addr, ((uint32_t*)src_buf)[0]);
+		gdev_write32(mem, dst_addr, ((uint32_t*) src_buf)[0]);
 		ret = 0;
 		/* if @id is give while not asynchronous, give it zero. */
 		if (id)
 			*id = 0;
-	}
-	else if (size <= GDEV_MEMCPY_IOWRITE_LIMIT && mem->map) {
+	} else if (size <= GDEV_MEMCPY_IOWRITE_LIMIT && mem->map) {
 		ret = gdev_write(mem, dst_addr, src_buf, size);
 		/* if @id is give while not asynchronous, give it zero. */
 		if (id)
 			*id = 0;
-	}
-	else if ((hmem = gdev_mem_lookup_by_buf(vas, src_buf, GDEV_MEM_DMA))) {
+	} else if ((hmem = gdev_mem_lookup_by_buf(vas, src_buf, GDEV_MEM_DMA))) {
 		ret = __gmemcpy_dma_to_device(ctx, dst_addr, hmem->addr, size, id);
-	}
-	else {
+	} else {
 		/* prepare bounce buffer memory. */
 		if (!dma_mem) {
 			bmem = __malloc_dma(vas, __min(size, ch_size), p_count);
 			if (!bmem)
 				return -ENOMEM;
-		}
-		else
+		} else
 			bmem = dma_mem;
 
 		/* copy memory to device. */
 		if (p_count > 1 && size > ch_size)
-			ret = __gmemcpy_to_device_p(ctx, dst_addr, src_buf, size, ch_size, p_count, bmem, host_copy);
+			ret = __gmemcpy_to_device_p(ctx, dst_addr, src_buf, size, ch_size,
+					p_count, bmem, host_copy);
 		else
-			ret = __gmemcpy_to_device_np(ctx, dst_addr, src_buf, size, ch_size, bmem, host_copy);
+			ret = __gmemcpy_to_device_np(ctx, dst_addr, src_buf, size, ch_size,
+					bmem, host_copy);
 
 		/* free bounce buffer memory, if necessary. */
 		if (!dma_mem)
@@ -266,8 +269,11 @@ static int __gmemcpy_to_device_locked(gdev_ctx_t *ctx, uint64_t dst_addr, const 
 /**
  * a wrapper function of gmemcpy_to_device().
  */
-static int __gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t *id, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t *id,
+		int (*host_copy)(void*, const void*, uint32_t)) {
+
+	GDEV_DPRINT("Beginning to transfer to device.\n");
 #ifndef GDEV_SCHED_DISABLED
 	struct gdev_sched_entity *se = h->se;
 	struct gdev_device *gdev = h->gdev;
@@ -280,19 +286,24 @@ static int __gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const v
 	int p_count = h->pipeline_count;
 	int ret;
 
+	GDEV_DPRINT("Done initializing code copy.\n");
 	mem = gdev_mem_lookup_by_addr(vas, dst_addr, GDEV_MEM_DEVICE);
 	if (!mem)
 		return -ENOENT;
 
 #ifndef GDEV_SCHED_DISABLED
 	/* decide if the context needs to stall or not. */
+
+	GDEV_DPRINT("Scheduling the memory.\n");
 	gdev_schedule_memory(se);
 #endif
-
+	GDEV_DPRINT("Locking the memory.\n");
 	gdev_mem_lock(mem);
 
 	gdev_shm_evict_conflict(ctx, mem); /* evict conflicting data. */
-	ret = __gmemcpy_to_device_locked(ctx, dst_addr, src_buf, size, id, ch_size, p_count, vas, mem, dma_mem, host_copy);
+	GDEV_DPRINT("Done with Evicting.\n");
+	ret = __gmemcpy_to_device_locked(ctx, dst_addr, src_buf, size, id, ch_size,
+			p_count, vas, mem, dma_mem, host_copy);
 
 	gdev_mem_unlock(mem);
 
@@ -308,13 +319,14 @@ static int __gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const v
  * copy device memory to host buffer with pipelining.
  * host_copy() is either memcpy() or copy_to_user().
  */
-static int __gmemcpy_from_device_p(gdev_ctx_t *ctx, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t ch_size, int p_count, gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_from_device_p(gdev_ctx_t *ctx, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t ch_size, int p_count,
+		gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t)) {
 	uint64_t rest_size = size;
 	uint64_t offset;
-	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = {0};
-	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = {0};
-	uint32_t fence[GDEV_PIPELINE_MAX_COUNT] = {0};
+	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	uint32_t fence[GDEV_PIPELINE_MAX_COUNT] = { 0 };
 	uint32_t dma_size;
 	int ret = 0;
 	int i;
@@ -353,29 +365,29 @@ static int __gmemcpy_from_device_p(gdev_ctx_t *ctx, void *dst_buf, uint64_t src_
 				uint64_t rest_size_n = rest_size - p_count * ch_size;
 				uint32_t dma_size_n = __min(rest_size_n, ch_size);
 				uint64_t offset_n = offset + p_count * ch_size;
-				fence[i] = gdev_memcpy(ctx, dma_addr[i], src_addr + offset_n, dma_size_n);
-			}
-			else if (rest_size == dma_size)
+				fence[i] = gdev_memcpy(ctx, dma_addr[i], src_addr + offset_n,
+						dma_size_n);
+			} else if (rest_size == dma_size)
 				goto end;
 			offset += dma_size;
 			rest_size -= dma_size;
 		}
 	}
 
-end:
-	return ret;
+	end: return ret;
 }
 
 /**
  * copy device memory to host buffer without pipelining.
  * host_copy() is either memcpy() or copy_to_user().
  */
-static int __gmemcpy_from_device_np(gdev_ctx_t *ctx, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t ch_size, gdev_mem_t **bmem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_from_device_np(gdev_ctx_t *ctx, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t ch_size, gdev_mem_t **bmem,
+		int (*host_copy)(void*, const void*, uint32_t)) {
 	uint64_t rest_size = size;
 	uint64_t offset;
-	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = {0};
-	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = {0};
+	uint64_t dma_addr[GDEV_PIPELINE_MAX_COUNT] = { 0 };
+	void *dma_buf[GDEV_PIPELINE_MAX_COUNT] = { 0 };
 	uint32_t fence;
 	uint32_t dma_size;
 	int ret = 0;
@@ -396,24 +408,22 @@ static int __gmemcpy_from_device_np(gdev_ctx_t *ctx, void *dst_buf, uint64_t src
 		offset += dma_size;
 	}
 
-end:
-	return ret;
+	end: return ret;
 }
 
 /**
  * copy device memory to host DMA buffer.
  */
-static int __gmemcpy_dma_from_device(gdev_ctx_t *ctx, uint64_t dst_addr, uint64_t src_addr, uint64_t size, uint32_t *id)
-{
+static int __gmemcpy_dma_from_device(gdev_ctx_t *ctx, uint64_t dst_addr,
+		uint64_t src_addr, uint64_t size, uint32_t *id) {
 	uint32_t fence;
 
 	/* we don't break data into chunks if copying directly from dma memory. 
-	   if @id == NULL, it means memcpy is synchronous. */
+	 if @id == NULL, it means memcpy is synchronous. */
 	if (!id) {
 		fence = gdev_memcpy(ctx, dst_addr, src_addr, size);
 		gdev_poll(ctx, fence, NULL);
-	}
-	else {
+	} else {
 		fence = gdev_memcpy_async(ctx, dst_addr, src_addr, size);
 		*id = fence;
 	}
@@ -424,42 +434,42 @@ static int __gmemcpy_dma_from_device(gdev_ctx_t *ctx, uint64_t dst_addr, uint64_
 /**
  * a wrapper function of __gmemcpy_from_device().
  */
-static int __gmemcpy_from_device_locked(gdev_ctx_t *ctx, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t *id, uint32_t ch_size, int p_count, gdev_vas_t *vas, gdev_mem_t *mem, gdev_mem_t **dma_mem, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_from_device_locked(gdev_ctx_t *ctx, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t *id, uint32_t ch_size,
+		int p_count, gdev_vas_t *vas, gdev_mem_t *mem, gdev_mem_t **dma_mem,
+		int (*host_copy)(void*, const void*, uint32_t)) {
 	gdev_mem_t *hmem;
 	gdev_mem_t **bmem;
 	int ret;
 
 	if (size <= 4 && mem->map) {
-		((uint32_t*)dst_buf)[0] = gdev_read32(mem, src_addr);
+		((uint32_t*) dst_buf)[0] = gdev_read32(mem, src_addr);
 		ret = 0;
 		/* if @id is given despite not asynchronous, give it zero. */
 		if (id)
 			*id = 0;
-	}
-	else if (size <= GDEV_MEMCPY_IOREAD_LIMIT && mem->map) {
+	} else if (size <= GDEV_MEMCPY_IOREAD_LIMIT && mem->map) {
 		ret = gdev_read(mem, dst_buf, src_addr, size);
 		/* if @id is given despite not asynchronous, give it zero. */
 		if (id)
 			*id = 0;
-	}
-	else if ((hmem = gdev_mem_lookup_by_buf(vas, dst_buf, GDEV_MEM_DMA))) {
+	} else if ((hmem = gdev_mem_lookup_by_buf(vas, dst_buf, GDEV_MEM_DMA))) {
 		ret = __gmemcpy_dma_from_device(ctx, hmem->addr, src_addr, size, id);
-	}
-	else {
+	} else {
 		/* prepare bounce buffer memory. */
 		if (!dma_mem) {
 			bmem = __malloc_dma(vas, __min(size, ch_size), p_count);
 			if (!bmem)
 				return -ENOMEM;
-		}
-		else
+		} else
 			bmem = dma_mem;
 
 		if (p_count > 1 && size > ch_size)
-			ret = __gmemcpy_from_device_p(ctx, dst_buf, src_addr, size, ch_size, p_count, bmem, host_copy);
+			ret = __gmemcpy_from_device_p(ctx, dst_buf, src_addr, size, ch_size,
+					p_count, bmem, host_copy);
 		else
-			ret = __gmemcpy_from_device_np(ctx, dst_buf, src_addr, size, ch_size, bmem, host_copy);
+			ret = __gmemcpy_from_device_np(ctx, dst_buf, src_addr, size,
+					ch_size, bmem, host_copy);
 
 		/* free bounce buffer memory, if necessary. */
 		if (!dma_mem)
@@ -476,8 +486,9 @@ static int __gmemcpy_from_device_locked(gdev_ctx_t *ctx, void *dst_buf, uint64_t
 /**
  * a wrapper function of gmemcpy_from_device().
  */
-static int __gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t *id, int (*host_copy)(void*, const void*, uint32_t))
-{
+static int __gmemcpy_from_device(struct gdev_handle *h, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t *id,
+		int (*host_copy)(void*, const void*, uint32_t)) {
 #ifndef GDEV_SCHED_DISABLED
 	struct gdev_sched_entity *se = h->se;
 	struct gdev_device *gdev = h->gdev;
@@ -502,9 +513,8 @@ static int __gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t 
 	gdev_mem_lock(mem);
 
 	gdev_shm_retrieve_swap(ctx, mem); /* retrieve data swapped. */
-	ret = __gmemcpy_from_device_locked(ctx, dst_buf, src_addr, size, id, 
-									   ch_size, p_count, vas, mem, dma_mem,
-									   host_copy);
+	ret = __gmemcpy_from_device_locked(ctx, dst_buf, src_addr, size, id,
+			ch_size, p_count, vas, mem, dma_mem, host_copy);
 	gdev_mem_unlock(mem);
 
 #ifndef GDEV_SCHED_DISABLED
@@ -518,28 +528,29 @@ static int __gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t 
 /**
  * this function must be used when saving data to host.
  */
-int gdev_callback_save_to_host(void *h, void* dst_buf, uint64_t src_addr, uint64_t size)
-{
-	gdev_vas_t *vas = ((struct gdev_handle*)h)->vas;
-	gdev_ctx_t *ctx = ((struct gdev_handle*)h)->ctx;
-	gdev_mem_t **dma_mem = ((struct gdev_handle*)h)->dma_mem;
+int gdev_callback_save_to_host(void *h, void* dst_buf, uint64_t src_addr,
+		uint64_t size) {
+	gdev_vas_t *vas = ((struct gdev_handle*) h)->vas;
+	gdev_ctx_t *ctx = ((struct gdev_handle*) h)->ctx;
+	gdev_mem_t **dma_mem = ((struct gdev_handle*) h)->dma_mem;
 	gdev_mem_t *mem;
-	uint32_t ch_size = ((struct gdev_handle*)h)->chunk_size;
-	int p_count = ((struct gdev_handle*)h)->pipeline_count;
+	uint32_t ch_size = ((struct gdev_handle*) h)->chunk_size;
+	int p_count = ((struct gdev_handle*) h)->pipeline_count;
 
 	mem = gdev_mem_lookup_by_addr(vas, src_addr, GDEV_MEM_DEVICE);
 	if (!mem)
 		return -ENOENT;
 
-	return __gmemcpy_from_device_locked(ctx, dst_buf, src_addr, size, NULL, ch_size, p_count, vas, mem, dma_mem, __f_memcpy);
+	return __gmemcpy_from_device_locked(ctx, dst_buf, src_addr, size, NULL,
+			ch_size, p_count, vas, mem, dma_mem, __f_memcpy);
 }
 
 /**
  * this function must be used when saving data to device.
  */
-int gdev_callback_save_to_device(void *h, uint64_t dst_addr, uint64_t src_addr, uint64_t size)
-{
-	gdev_ctx_t *ctx = ((struct gdev_handle*)h)->ctx;
+int gdev_callback_save_to_device(void *h, uint64_t dst_addr, uint64_t src_addr,
+		uint64_t size) {
+	gdev_ctx_t *ctx = ((struct gdev_handle*) h)->ctx;
 	uint32_t fence;
 
 	fence = gdev_memcpy(ctx, dst_addr, src_addr, size);
@@ -551,28 +562,29 @@ int gdev_callback_save_to_device(void *h, uint64_t dst_addr, uint64_t src_addr, 
 /**
  * this function must be used when loading data from host.
  */
-int gdev_callback_load_from_host(void *h, uint64_t dst_addr, void *src_buf, uint64_t size)
-{
-	gdev_vas_t *vas = ((struct gdev_handle*)h)->vas;
-	gdev_ctx_t *ctx = ((struct gdev_handle*)h)->ctx;
-	gdev_mem_t **dma_mem = ((struct gdev_handle*)h)->dma_mem;
+int gdev_callback_load_from_host(void *h, uint64_t dst_addr, void *src_buf,
+		uint64_t size) {
+	gdev_vas_t *vas = ((struct gdev_handle*) h)->vas;
+	gdev_ctx_t *ctx = ((struct gdev_handle*) h)->ctx;
+	gdev_mem_t **dma_mem = ((struct gdev_handle*) h)->dma_mem;
 	gdev_mem_t *mem;
-	uint32_t ch_size = ((struct gdev_handle*)h)->chunk_size;
-	int p_count = ((struct gdev_handle*)h)->pipeline_count;
+	uint32_t ch_size = ((struct gdev_handle*) h)->chunk_size;
+	int p_count = ((struct gdev_handle*) h)->pipeline_count;
 
 	mem = gdev_mem_lookup_by_addr(vas, dst_addr, GDEV_MEM_DEVICE);
 	if (!mem)
 		return -ENOENT;
 
-	return __gmemcpy_to_device_locked(ctx, dst_addr, src_buf, size, NULL, ch_size, p_count, vas, mem, dma_mem, __f_memcpy);
+	return __gmemcpy_to_device_locked(ctx, dst_addr, src_buf, size, NULL,
+			ch_size, p_count, vas, mem, dma_mem, __f_memcpy);
 }
 
 /**
  * this function must be used when loading data from device.
  */
-int gdev_callback_load_from_device(void *h, uint64_t dst_addr, uint64_t src_addr, uint64_t size)
-{
-	gdev_ctx_t *ctx = ((struct gdev_handle*)h)->ctx;
+int gdev_callback_load_from_device(void *h, uint64_t dst_addr,
+		uint64_t src_addr, uint64_t size) {
+	gdev_ctx_t *ctx = ((struct gdev_handle*) h)->ctx;
 	uint32_t fence;
 
 	fence = gdev_memcpy(ctx, dst_addr, src_addr, size);
@@ -581,18 +593,175 @@ int gdev_callback_load_from_device(void *h, uint64_t dst_addr, uint64_t src_addr
 	return 0;
 }
 
+static inline void tvsub(struct timespec *x,
+                                                 struct timespec *y,
+                                                 struct timespec *ret)
+{
+        ret->tv_sec = x->tv_sec - y->tv_sec;
+        ret->tv_nsec = x->tv_nsec - y->tv_nsec;
+        if (ret->tv_nsec < 0) {
+                ret->tv_sec--;
+                ret->tv_nsec += 1000000;
+        }
+}
+
+struct kernel_wrapper
+{
+	struct gdev_kernel *kernel;
+};
+
+struct kernel_list
+{
+	struct kernel_wrapper kernel[10];
+};
+
+int gml(struct kernel_list list)
+{
+
+}
+
 /******************************************************************************
  ******************************************************************************
  * Gdev API functions
  ******************************************************************************
  ******************************************************************************/
+/**
+ * gbench();
+ * benchmarks a specific kernel
+ */
+
+int gbench(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
+{
+
+	int cat = 0;
+	GDEV_DPRINT("Entering benchmark.\n");
+	#ifndef GDEV_SCHED_DISABLED
+		struct gdev_sched_entity *se = h->se;
+		setSchedParams(h,kernel->block_x*kernel->block_y*kernel->block_z, kernel->grid_x*kernel->grid_y*kernel->grid_z,kernel->mem_size);
+	#endif
+		gdev_vas_t *vas = h->vas;
+		gdev_ctx_t *ctx = h->ctx;
+
+	#ifndef GDEV_SCHED_DISABLED
+		/* decide if the context needs to stall or not and to recategorize or not. */
+		struct timespec tv;
+		int total;
+		struct timespec tv_total_start, tv_total_end;
+
+
+		//gdev_schedule_compute(se,0);
+	/*
+		gettimeofday(&tv_total_start, NULL);
+
+		gdev_schedule_compute(se,1);
+		gettimeofday(&tv_total_end, NULL);
+		tvsub(&tv_total_end, &tv_total_start, &tv);
+		total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+		GDEV_PRINT("Enhanced scheduling in gdev takes: %dms\n", total);
+		*/
+	#endif
+
+		gdev_mem_lock_all(vas);
+
+		gdev_shm_retrieve_swap_all(ctx, vas); /* get all data swapped back! */
+	#ifndef GDEV_SCHED_DISABLED
+
+			gettimeofday(&tv_total_start, NULL);
+			//gdev_schedule_compute(se,0);
+			int tmp_blck_x = kernel->block_x;
+			int tmp_blck_y = kernel->block_y;
+			int tmp_grd_x = kernel->grid_x;
+			kernel->grid_x = 1;
+
+			if(kernel->block_x < 1)
+				kernel->block_x = 1;
+
+			if(kernel->block_y < 1)
+				kernel->block_y = 1;
+			*id = gdev_launch(ctx, kernel);
+			gettimeofday(&tv_total_end, NULL);
+			tvsub(&tv_total_end, &tv_total_start, &tv);
+			total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+			gettimeofday(&tv_total_start, NULL);
+			kernel->block_x -= 256;
+			kernel->block_y -= 256;
+			if(kernel->block_x < 1)
+				kernel->block_x = 1;
+
+			if(kernel->block_y < 1)
+				kernel->block_y = 1;
+			*id = gdev_launch(ctx, kernel);
+			gettimeofday(&tv_total_end, NULL);
+			tvsub(&tv_total_end, &tv_total_start, &tv);
+			if((tv.tv_sec * 1000000 + tv.tv_nsec - total) > -1 )
+				cat++;
+			else
+				cat--;
+			total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+			gettimeofday(&tv_total_start, NULL);
+			kernel->block_x += 512;
+			kernel->block_y += 512;
+			if(kernel->block_x < 1)
+				kernel->block_x = 1;
+
+			if(kernel->block_y < 1)
+				kernel->block_y = 1;
+			*id = gdev_launch(ctx, kernel);
+			gettimeofday(&tv_total_end, NULL);
+			tvsub(&tv_total_end, &tv_total_start, &tv);
+			if((tv.tv_sec * 1000000 + tv.tv_nsec - total) > -1 )
+				cat--;
+			else
+				cat++;
+			total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+			GDEV_DPRINT("Overhead is	: %dms\n", total);
+
+			kernel->grid_x = tmp_grd_x;
+			kernel->block_x = tmp_blck_x;
+			kernel->block_y = tmp_blck_y;
+	#endif
+		gdev_mem_unlock_all(vas); /* this should be called when compute done... */
+
+		return cat;
+}
+
+
+struct gdev_handle *gopen_consistant(int minor, void *h, int kernel_category) {
+	struct gdev_device *_gdev = ((struct gdev_handle *)h)->gdev;
+	gdev_ctx_t *ctx = ((struct gdev_handle *)h)->ctx;
+	struct gdev_sched_entity *se = NULL;
+#ifndef GDEV_SCHED_DISABLED
+		GDEV_DPRINT("Creating the scheduling entity.\n");
+		GDEV_DPRINT("Gdev handle is %x pre scheduling.\n", h);
+		/* allocate a scheduling entity. */
+		se = gdev_sched_entity_create_smart(_gdev, ctx, NULL, kernel_category);
+		if (!se) {
+			GDEV_PRINT("Failed to allocate scheduling entity\n");
+			goto fail_se;
+		}
+		GDEV_DPRINT("Created the scheduling entity %x.\n", se);
+
+#endif
+		((struct gdev_device *)_gdev)->pse = se;
+		//gdev = _gdev;
+		//((struct gdev_handle *)h)->gdev = _gdev;
+		((struct gdev_handle *)h)->se = se;
+		return h;
+#ifndef GDEV_SCHED_DISABLED
+	fail_se: return NULL;
+#endif
+
+}
 
 /**
  * gopen():
  * create a new GPU context on the given device #@devnum.
  */
-struct gdev_handle *gopen(int minor)
-{
+struct gdev_handle *gopen(int minor, int kernel_category) {
 	struct gdev_handle *h = NULL;
 	struct gdev_device *gdev = NULL;
 	struct gdev_sched_entity *se = NULL;
@@ -602,12 +771,18 @@ struct gdev_handle *gopen(int minor)
 
 	if (!(h = MALLOC(sizeof(*h)))) {
 		GDEV_PRINT("Failed to allocate device handle\n");
-		return NULL;
+		return NULL ;
 	}
 	memset(h, 0, sizeof(*h));
 
 	h->pipeline_count = GDEV_PIPELINE_DEFAULT_COUNT;
 	h->chunk_size = GDEV_CHUNK_DEFAULT_SIZE;
+    struct timespec tv;
+    int total;
+    struct timespec tv_total_start, tv_total_end;
+
+    gettimeofday(&tv_total_start, NULL);
+
 
 	/* open the specified device. */
 	gdev = gdev_dev_open(minor);
@@ -615,42 +790,80 @@ struct gdev_handle *gopen(int minor)
 		GDEV_PRINT("Failed to open gdev%d\n", minor);
 		goto fail_open;
 	}
+    gettimeofday(&tv_total_end, NULL);
+    tvsub(&tv_total_end, &tv_total_start, &tv);
+    total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
-	/* none can access GPU while someone is opening device. */
-	gdev_block_start(gdev);
+    GDEV_DPRINT("gdev pctx is : %x\n", gdev->pctx);
+    GDEV_DPRINT("gdev is : %x\n", gdev);
 
-	/* create a new virual address space (VAS) object. */
-	vas = gdev_vas_new(gdev, GDEV_VAS_SIZE, h);
-	if (!vas) {
-		GDEV_PRINT("Failed to create a virtual address space object\n");
-		goto fail_vas;
-	}
 
-	/* create a new GPU context object. */
-	ctx = gdev_ctx_new(gdev, vas);
-	if (!ctx) {
-		GDEV_PRINT("Failed to create a context object\n");
-		goto fail_ctx;
-	}
+	if (!gdev->pctx || !gdev->pvas) {
 
-	/* allocate static bounce bound buffer objects. */
-	dma_mem = __malloc_dma(vas, GDEV_CHUNK_DEFAULT_SIZE, h->pipeline_count);
-	if (!dma_mem) {
-		GDEV_PRINT("Failed to allocate static DMA buffer object\n");
-		goto fail_dma;
-	}
+	    GDEV_DPRINT("Creating a primary context.\n");
+		/* none can access GPU while someone is opening device. */
+		gdev_block_start(gdev);
+
+		/* create a new virual address space (VAS) object. */
+		vas = gdev_vas_new(gdev, GDEV_VAS_SIZE, h);
+		if (!vas) {
+			GDEV_DPRINT("Failed to create a virtual address space object\n");
+			goto fail_vas;
+		}
+		GDEV_DPRINT("Created the virtual address space.\n");
+		gdev->pvas = vas;
+
+		/* allocate static bounce bound buffer objects. */
+		dma_mem = __malloc_dma(vas, GDEV_CHUNK_DEFAULT_SIZE, h->pipeline_count);
+		if (!dma_mem) {
+			GDEV_PRINT("Failed to allocate static DMA buffer object\n");
+			goto fail_dma;
+		}
+		GDEV_DPRINT("Created the DMA.\n");
+		gdev->dma_mem = dma_mem;
+
+		/* create a new GPU context object. */
+		ctx = gdev_ctx_new(gdev, vas);
+		if (!ctx) {
+			GDEV_PRINT("Failed to create a context object\n");
+			goto fail_ctx;
+		}
+		GDEV_DPRINT("Created the context.\n");
+		gdev->pctx = ctx;
 
 #ifndef GDEV_SCHED_DISABLED
-	/* allocate a scheduling entity. */
-	se = gdev_sched_entity_create(gdev, ctx);
-	if (!se) {
-		GDEV_PRINT("Failed to allocate scheduling entity\n");
-		goto fail_se;
-	}
+		GDEV_DPRINT("Creating the scheduling entity.\n");
+		/* allocate a scheduling entity. */
+		se = gdev_sched_entity_create_smart(gdev, ctx, NULL, kernel_category);
+		if (!se) {
+			GDEV_PRINT("Failed to allocate scheduling entity\n");
+			goto fail_se;
+		}
+		GDEV_DPRINT("Created the scheduling entity.\n");
+		gdev->pse = se;
 #endif
-	
-	/* now other users can access the GPU. */
-	gdev_block_end(gdev);
+
+		/* now other users can access the GPU. */
+		gdev_block_end(gdev);
+	    gettimeofday(&tv_total_end, NULL);
+	    tvsub(&tv_total_end, &tv_total_start, &tv);
+	    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+	    GDEV_DPRINT("Primary context creation took %d total.\n", total);
+	} else {
+		vas = gdev->pvas;
+		ctx = gdev->pctx;
+		se = gdev->pse;
+		dma_mem = gdev->dma_mem;
+	    gettimeofday(&tv_total_end, NULL);
+	    tvsub(&tv_total_end, &tv_total_start, &tv);
+	    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+	    GDEV_DPRINT("Primary context already exists.\nIt took %d to set it.\n", total);
+	}
+	GDEV_DPRINT("vas value is %p.\n", vas);
+	GDEV_DPRINT("Ctx value is %p.\n", ctx);
+
 
 	/* save the objects to the handle. */
 	h->se = se;
@@ -659,65 +872,87 @@ struct gdev_handle *gopen(int minor)
 	h->ctx = ctx;
 	h->gdev = gdev;
 	h->dev_id = minor;
+    gettimeofday(&tv_total_end, NULL);
+    tvsub(&tv_total_end, &tv_total_start, &tv);
+    total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
-	GDEV_PRINT("Opened gdev%d\n", minor);
+
+	GDEV_DPRINT("Opened gdev%d, It took %d.\n", minor,total);
 
 	return h;
 
 #ifndef GDEV_SCHED_DISABLED
-fail_se:
-	__free_dma(dma_mem, h->pipeline_count);
+	fail_se: __free_dma(dma_mem, h->pipeline_count);
 #endif
-fail_dma:
-	gdev_ctx_free(ctx);
-fail_ctx:
-	gdev_vas_free(vas);
-fail_vas:
-	gdev_block_end(gdev);
+	fail_dma: gdev_ctx_free(ctx);
+	fail_ctx: gdev_vas_free(vas);
+	fail_vas: gdev_block_end(gdev);
 	gdev_dev_close(gdev);
-fail_open:
-	return NULL;
+	fail_open: return NULL ;
+
 }
 
 /**
  * gclose():
  * destroy the GPU context associated with @handle.
  */
-int gclose(struct gdev_handle *h)
-{
-	struct gdev_device *gdev=h->gdev;
+int gclose(struct gdev_handle *h) {
+	struct gdev_device *gdev = h->gdev;
 
 	if (!h)
 		return -ENOENT;
 	if (!h->gdev || !h->ctx || !h->vas)
 		return -ENOENT;
-	
-	/* none can access GPU while someone is closing device. */
-	gdev_block_start(gdev);
+
+if(gdev->users==1)
+{
+	/* This is the default implementation similar to the proprietary NVIDIA implementation (Each process would share a single context but different processes have different contexts. */
+	if (gdev->pctx) {
+		/* none can access GPU while someone is closing device. */
+		gdev_block_start(gdev);
 
 #ifndef GDEV_SCHED_DISABLED
-	if (!h->se)
-		return -ENOENT;
-	/* free the scheduling entity. */
-	gdev_sched_entity_destroy(h->se);
+		if (!h->se)
+			return -ENOENT;
+		/* free the scheduling entity. */
+		gdev_sched_entity_destroy(h->se);
 #endif
-	
+
+		/* fix me: dma is dependent on vas but might be erroneous since we leave redundant parts of dma alone on subsequent calls to gclose */
+		/* free the bounce buffer. */
+		if (h->dma_mem)
+			__free_dma(h->dma_mem, h->pipeline_count);
+
+		/* garbage collection: free all memory left in heap. */
+		gdev_mem_gc(h->vas);
+
+		/* free the objects. */
+		gdev_ctx_free(h->ctx);
+		gdev_vas_free(h->vas);
+
+		gdev->pctx = NULL;
+		gdev->pvas = NULL;
+		gdev->pse = NULL;
+
+
+		gdev_block_end(gdev);
+		gdev_dev_close(h->gdev);
+		GDEV_DPRINT("Closed gdev%d\n", h->dev_id);
+	}
+}
+else if (gdev->users > 1)
+{
+	gdev->users--;
+	/* fix me: dma is dependent on vas but might be erroneous since we leave redundant parts of dma alone on subsequent calls to gclose */
 	/* free the bounce buffer. */
 	if (h->dma_mem)
 		__free_dma(h->dma_mem, h->pipeline_count);
 
-	/* garbage collection: free all memory left in heap. */
-	gdev_mem_gc(h->vas);
+	GDEV_DPRINT("The number of current users is %d.\n",gdev->users);
+}
 
-	/* free the objects. */
-	gdev_ctx_free(h->ctx);
-	gdev_vas_free(h->vas);
-	
-	gdev_block_end(gdev);
-	
-	gdev_dev_close(h->gdev);
 
-	GDEV_PRINT("Closed gdev%d\n", h->dev_id);
+
 
 	FREE(h);
 
@@ -728,22 +963,20 @@ int gclose(struct gdev_handle *h)
  * gmalloc():
  * allocate new device memory space.
  */
-uint64_t gmalloc(struct gdev_handle *h, uint64_t size)
-{
+uint64_t gmalloc(struct gdev_handle *h, uint64_t size) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 
 	if (gdev->mem_used + size > gdev->mem_size) {
 		/* try to share memory with someone (only for device memory). 
-		   the shared memory must be freed in gdev_mem_free() when 
-		   unreferenced by all users. */
+		 the shared memory must be freed in gdev_mem_free() when
+		 unreferenced by all users. */
 		if (!(mem = gdev_mem_share(vas, size))) {
 			GDEV_PRINT("Failed to share memory with victims\n");
 			goto fail;
 		}
-	}
-	else if (!(mem = gdev_mem_alloc(vas, size, GDEV_MEM_DEVICE))) {
+	} else if (!(mem = gdev_mem_alloc(vas, size, GDEV_MEM_DEVICE))) {
 		if (!(mem = gdev_mem_share(vas, size))) {
 			GDEV_PRINT("Failed to share memory with victims\n");
 			goto fail;
@@ -752,16 +985,14 @@ uint64_t gmalloc(struct gdev_handle *h, uint64_t size)
 
 	return gdev_mem_getaddr(mem);
 
-fail:
-	return 0;
+	fail: return 0;
 }
 
 /**
  * gfree():
  * free the memory space allocated at the specified address.
  */
-uint64_t gfree(struct gdev_handle *h, uint64_t addr)
-{
+uint64_t gfree(struct gdev_handle *h, uint64_t addr) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 	uint64_t size;
@@ -773,16 +1004,14 @@ uint64_t gfree(struct gdev_handle *h, uint64_t addr)
 
 	return size;
 
-fail:
-	return 0;
+	fail: return 0;
 }
 
 /**
  * gmalloc_dma():
  * allocate new host dma memory space.
  */
-void *gmalloc_dma(struct gdev_handle *h, uint64_t size)
-{
+void *gmalloc_dma(struct gdev_handle *h, uint64_t size) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
@@ -794,16 +1023,14 @@ void *gmalloc_dma(struct gdev_handle *h, uint64_t size)
 
 	return gdev_mem_getbuf(mem);
 
-fail:
-	return 0;
+	fail: return 0;
 }
 
 /**
  * gfree_dma():
  * free the host dma memory space allocated at the specified buffer.
  */
-uint64_t gfree_dma(struct gdev_handle *h, void *buf)
-{
+uint64_t gfree_dma(struct gdev_handle *h, void *buf) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 	uint64_t size;
@@ -815,39 +1042,35 @@ uint64_t gfree_dma(struct gdev_handle *h, void *buf)
 
 	return size;
 
-fail:
-	return 0;
+	fail: return 0;
 }
 
 /**
  * gmap():
  * map device memory to host DMA memory.
  */
-void *gmap(struct gdev_handle *h, uint64_t addr, uint64_t size)
-{
+void *gmap(struct gdev_handle *h, uint64_t addr, uint64_t size) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 	uint64_t offset;
-	
+
 	if (!(mem = gdev_mem_lookup_by_addr(vas, addr, GDEV_MEM_DEVICE)))
 		goto fail;
 
 	offset = addr - gdev_mem_getaddr(mem);
 	return gdev_mem_map(mem, offset, size);
 
-fail:
-	return NULL;
+	fail: return NULL ;
 }
 
 /**
  * gunmap():
  * unmap device memory from host DMA memory.
  */
-int gunmap(struct gdev_handle *h, void *buf)
-{
+int gunmap(struct gdev_handle *h, void *buf) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
-	
+
 	if (!(mem = gdev_mem_lookup_by_buf(vas, buf, GDEV_MEM_DEVICE)))
 		goto fail;
 
@@ -855,16 +1078,15 @@ int gunmap(struct gdev_handle *h, void *buf)
 
 	return 0;
 
-fail:
-	return -ENOENT;
+	fail: return -ENOENT;
 }
 
 /**
  * gmemcpy_to_device():
  * copy data from @buf to device memory at @addr.
  */
-int gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const void *src_buf, uint64_t size)
-{
+int gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr,
+		const void *src_buf, uint64_t size) {
 	return __gmemcpy_to_device(h, dst_addr, src_buf, size, NULL, __f_memcpy);
 }
 
@@ -872,8 +1094,8 @@ int gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const void *src_
  * gmemcpy_to_device_async():
  * asynchronously copy data from @buf to device memory at @addr.
  */
-int gmemcpy_to_device_async(struct gdev_handle *h, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t *id)
-{
+int gmemcpy_to_device_async(struct gdev_handle *h, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t *id) {
 	return __gmemcpy_to_device(h, dst_addr, src_buf, size, id, __f_memcpy);
 }
 
@@ -881,8 +1103,8 @@ int gmemcpy_to_device_async(struct gdev_handle *h, uint64_t dst_addr, const void
  * gmemcpy_user_to_device():
  * copy data from "user-space" @buf to device memory at @addr.
  */
-int gmemcpy_user_to_device(struct gdev_handle *h, uint64_t dst_addr, const void *src_buf, uint64_t size)
-{
+int gmemcpy_user_to_device(struct gdev_handle *h, uint64_t dst_addr,
+		const void *src_buf, uint64_t size) {
 	return __gmemcpy_to_device(h, dst_addr, src_buf, size, NULL, __f_cfu);
 }
 
@@ -890,8 +1112,8 @@ int gmemcpy_user_to_device(struct gdev_handle *h, uint64_t dst_addr, const void 
  * gmemcpy_user_to_device_async():
  * asynchrounouly copy data from "user-space" @buf to device memory at @addr.
  */
-int gmemcpy_user_to_device_async(struct gdev_handle *h, uint64_t dst_addr, const void *src_buf, uint64_t size, uint32_t *id)
-{
+int gmemcpy_user_to_device_async(struct gdev_handle *h, uint64_t dst_addr,
+		const void *src_buf, uint64_t size, uint32_t *id) {
 	return __gmemcpy_to_device(h, dst_addr, src_buf, size, id, __f_cfu);
 }
 
@@ -899,8 +1121,8 @@ int gmemcpy_user_to_device_async(struct gdev_handle *h, uint64_t dst_addr, const
  * gmemcpy_from_device():
  * copy data from device memory at @addr to @buf.
  */
-int gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t src_addr, uint64_t size)
-{
+int gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t src_addr,
+		uint64_t size) {
 	return __gmemcpy_from_device(h, dst_buf, src_addr, size, NULL, __f_memcpy);
 }
 
@@ -908,8 +1130,8 @@ int gmemcpy_from_device(struct gdev_handle *h, void *dst_buf, uint64_t src_addr,
  * gmemcpy_from_device_async():
  * asynchronously copy data from device memory at @addr to @buf.
  */
-int gmemcpy_from_device_async(struct gdev_handle *h, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t *id)
-{
+int gmemcpy_from_device_async(struct gdev_handle *h, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t *id) {
 	return __gmemcpy_from_device(h, dst_buf, src_addr, size, id, __f_memcpy);
 }
 
@@ -917,9 +1139,8 @@ int gmemcpy_from_device_async(struct gdev_handle *h, void *dst_buf, uint64_t src
  * gmemcpy_user_from_device():
  * copy data from device memory at @addr to "user-space" @buf.
  */
-int gmemcpy_user_from_device
-(struct gdev_handle *h, void *dst_buf, uint64_t src_addr, uint64_t size)
-{
+int gmemcpy_user_from_device(struct gdev_handle *h, void *dst_buf,
+		uint64_t src_addr, uint64_t size) {
 	return __gmemcpy_from_device(h, dst_buf, src_addr, size, NULL, __f_ctu);
 }
 
@@ -927,8 +1148,8 @@ int gmemcpy_user_from_device
  * gmemcpy_user_from_device_async():
  * asynchronously copy data from device memory at @addr to "user-space" @buf.
  */
-int gmemcpy_user_from_device_async(struct gdev_handle *h, void *dst_buf, uint64_t src_addr, uint64_t size, uint32_t *id)
-{
+int gmemcpy_user_from_device_async(struct gdev_handle *h, void *dst_buf,
+		uint64_t src_addr, uint64_t size, uint32_t *id) {
 	return __gmemcpy_from_device(h, dst_buf, src_addr, size, id, __f_ctu);
 }
 
@@ -937,8 +1158,8 @@ int gmemcpy_user_from_device_async(struct gdev_handle *h, void *dst_buf, uint64_
  * copy data of the given size within the global address space.
  * this could be HtoD, DtoH, DtoD, and HtoH.
  */
-int gmemcpy(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, uint64_t size)
-{
+int gmemcpy(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr,
+		uint64_t size) {
 #ifndef GDEV_SCHED_DISABLED
 	struct gdev_sched_entity *se = h->se;
 	struct gdev_device *gdev = h->gdev;
@@ -971,7 +1192,7 @@ int gmemcpy(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, uint64_
 	gdev_mem_lock(dst);
 	gdev_mem_lock(src);
 
-	fence = gdev_memcpy(ctx, dst_addr, src_addr, size); 
+	fence = gdev_memcpy(ctx, dst_addr, src_addr, size);
 	gdev_poll(ctx, fence, NULL);
 
 	gdev_mem_unlock(src);
@@ -990,8 +1211,8 @@ int gmemcpy(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, uint64_
  * asynchronously copy data of the given size within the global address space.
  * this could be HtoD, DtoH, DtoD, and HtoH.
  */
-int gmemcpy_async(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, uint64_t size, uint32_t *id)
-{
+int gmemcpy_async(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr,
+		uint64_t size, uint32_t *id) {
 #ifndef GDEV_SCHED_DISABLED
 	struct gdev_sched_entity *se = h->se;
 	struct gdev_device *gdev = h->gdev;
@@ -1024,7 +1245,7 @@ int gmemcpy_async(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, u
 	gdev_mem_lock(dst);
 	gdev_mem_lock(src);
 
-	fence = gdev_memcpy_async(ctx, dst_addr, src_addr, size); 
+	fence = gdev_memcpy_async(ctx, dst_addr, src_addr, size);
 
 	gdev_mem_unlock(src);
 	gdev_mem_unlock(dst);
@@ -1043,8 +1264,102 @@ int gmemcpy_async(struct gdev_handle *h, uint64_t dst_addr, uint64_t src_addr, u
  * glaunch():
  * launch the GPU kernel code.
  */
-int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
-{
+int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id) {
+	GDEV_DPRINT("Preparing to launch the kernel.\n");
+#ifndef GDEV_SCHED_DISABLED
+	struct gdev_sched_entity *se = h->se;
+	setSchedParams(h,kernel->block_x*kernel->block_y*kernel->block_z, kernel->grid_x*kernel->grid_y*kernel->grid_z,kernel->mem_size);
+#endif
+	gdev_vas_t *vas = h->vas;
+	gdev_ctx_t *ctx = h->ctx;
+
+#ifndef GDEV_SCHED_DISABLED
+	/* decide if the context needs to stall or not and to recategorize or not. */
+	struct timespec tv;
+	int total;
+	struct timespec tv_total_start, tv_total_end;
+
+	gettimeofday(&tv_total_start, NULL);
+
+	gdev_schedule_compute(se,0);
+
+	/**
+	 * Benchmark
+	 */
+	int category = gbench(h,kernel,id);
+
+	GDEV_DPRINT("The category for this kernel is %d.\n",category);
+
+	if( category == 2 ) // Horrible kernel
+	{
+		int tmp_blck_x = kernel->block_x;
+		int tmp_blck_y = kernel->block_y;
+		int tmp_grd_x = kernel->grid_x;
+
+		total = tmp_blck_x*tmp_blck_y*tmp_grd_x;
+		kernel->block_x = 1024;
+		kernel->block_y = 1;
+		kernel->grid_x = total/1024;
+		h->gdev->kernel_health_status--;
+
+	}
+	else if (category == -2) // Scalable
+	{
+		h->gdev->kernel_health_status++;
+	}
+	else if (category == 0) // Sweet Spot
+	{
+		if ((h->gdev->kernel_health_status > 0) && (h->gdev->kernel_health_status < 100))
+		{
+			int tmp = h->gdev->kernel_health_status;
+			kernel->block_x /= tmp;
+			kernel->block_y /= tmp;
+			kernel->grid_x *= tmp;
+			kernel->grid_y *= tmp;
+		}
+	}
+
+	gettimeofday(&tv_total_end, NULL);
+	tvsub(&tv_total_end, &tv_total_start, &tv);
+	total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+	GDEV_DPRINT("Normal scheduling in gdev takes: %dms\n", total);
+
+#endif
+
+	gdev_mem_lock_all(vas);
+
+	gdev_shm_retrieve_swap_all(ctx, vas); /* get all data swapped back! */
+#ifndef GDEV_SCHED_DISABLED
+	if(se->async_tasks[0])
+	{
+		*id = gdev_launch_async(ctx, kernel);
+		int i=0;
+		while(se->async_tasks[i+1])
+		{
+			GDEV_DPRINT("glaunch: Inside async while loop.\n");
+			gdev_launch_async(ctx, kernel);//se->async_tasks[i]->kernel);
+			i++;
+		}
+		//gdev_launch(ctx, se->async_tasks[i]->kernel);
+	}
+	else
+	{
+		gettimeofday(&tv_total_start, NULL);
+
+
+		*id = gdev_launch(ctx, kernel);
+	}
+
+#else
+	gdev_launch(ctx, kernel);
+#endif
+	gdev_mem_unlock_all(vas); /* this should be called when compute done... */
+
+	return 0;
+}
+
+int glaunch_async(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id) {
 #ifndef GDEV_SCHED_DISABLED
 	struct gdev_sched_entity *se = h->se;
 #endif
@@ -1053,13 +1368,33 @@ int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
 
 #ifndef GDEV_SCHED_DISABLED
 	/* decide if the context needs to stall or not. */
-	gdev_schedule_compute(se);
+	struct timespec tv;
+	int total;
+	struct timespec tv_total_start, tv_total_end;
+
+	gettimeofday(&tv_total_start, NULL);
+
+	//gdev_schedule_compute(se,0);
+	gettimeofday(&tv_total_end, NULL);
+	tvsub(&tv_total_end, &tv_total_start, &tv);
+	total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+	GDEV_DPRINT("Normal scheduling in gdev takes: %dms\n", total);
+
+	gettimeofday(&tv_total_start, NULL);
+
+	//gdev_schedule_compute(se,1);
+	gettimeofday(&tv_total_end, NULL);
+	tvsub(&tv_total_end, &tv_total_start, &tv);
+	total = tv.tv_sec * 1000000 + tv.tv_nsec;
+
+	GDEV_DPRINT("Enhanced scheduling in gdev takes: %dms\n", total);
 #endif
 
 	gdev_mem_lock_all(vas);
 
 	gdev_shm_retrieve_swap_all(ctx, vas); /* get all data swapped back! */
-	*id = gdev_launch(ctx, kernel);
+	*id = gdev_launch_async(ctx, kernel);
 
 	gdev_mem_unlock_all(vas); /* this should be called when compute done... */
 
@@ -1071,20 +1406,19 @@ int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id)
  * poll until the GPU becomes available.
  * @timeout is a unit of milliseconds.
  */
-int gsync(struct gdev_handle *h, uint32_t id, struct gdev_time *timeout)
-{
+int gsync(struct gdev_handle *h, uint32_t id, struct gdev_time *timeout) {
 	/* @id could be zero if users have called memcpy_async in a wrong way. */
 	if (id == 0)
 		return 0;
 #ifndef __KERNEL__
-        int ret = gdev_poll(h->ctx, id, timeout);
+	int ret = gdev_poll(h->ctx, id, timeout);
 #ifndef GDEV_SCHED_DISABLED
-        gdev_next_compute(h->gdev);
+	gdev_next_compute(h->gdev);
 #endif
-        return ret;
+	return ret;
 #else
 
-        return gdev_poll(h->ctx, id, timeout);
+	return gdev_poll(h->ctx, id, timeout);
 #endif
 }
 
@@ -1092,8 +1426,7 @@ int gsync(struct gdev_handle *h, uint32_t id, struct gdev_time *timeout)
  * gbarrier():
  * explicitly barrier the memory.
  */
-int gbarrier(struct gdev_handle *h)
-{
+int gbarrier(struct gdev_handle *h) {
 	return gdev_barrier(h->ctx);
 }
 
@@ -1101,8 +1434,7 @@ int gbarrier(struct gdev_handle *h)
  * gquery():
  * query the device-specific information.
  */
-int gquery(struct gdev_handle *h, uint32_t type, uint64_t *result)
-{
+int gquery(struct gdev_handle *h, uint32_t type, uint64_t *result) {
 	return gdev_query(h->gdev, type, result);
 }
 
@@ -1110,8 +1442,8 @@ int gquery(struct gdev_handle *h, uint32_t type, uint64_t *result)
  * gtune():
  * tune resource management parameters.
  */
-int gtune(struct gdev_handle *h, uint32_t type, uint32_t value)
-{
+int gtune(struct gdev_handle *h, uint32_t type, uint32_t value) {
+	GDEV_DPRINT("gtune is started.\n");
 	switch (type) {
 	case GDEV_TUNE_MEMCPY_PIPELINE_COUNT:
 		if (value > GDEV_PIPELINE_MAX_COUNT || value < GDEV_PIPELINE_MIN_COUNT)
@@ -1151,8 +1483,7 @@ int gtune(struct gdev_handle *h, uint32_t type, uint32_t value)
 	return 0;
 }
 
-int gshmget(Ghandle h, int key, uint64_t size, int flags)
-{
+int gshmget(Ghandle h, int key, uint64_t size, int flags) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_vas_t *vas = h->vas;
 	int id;
@@ -1172,8 +1503,7 @@ int gshmget(Ghandle h, int key, uint64_t size, int flags)
  * attach device shared memory.
  * note that @addr and @flags are currently not supported.
  */
-uint64_t gshmat(Ghandle h, int id, uint64_t addr, int flags)
-{
+uint64_t gshmat(Ghandle h, int id, uint64_t addr, int flags) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *new, *owner;
@@ -1187,8 +1517,7 @@ uint64_t gshmat(Ghandle h, int id, uint64_t addr, int flags)
 
 	return gdev_mem_getaddr(new);
 
-fail:
-	gdev_mutex_unlock(&gdev->shm_mutex);
+	fail: gdev_mutex_unlock(&gdev->shm_mutex);
 	return 0;
 }
 
@@ -1196,8 +1525,7 @@ fail:
  * gshmdt():
  * detach device shared memory.
  */
-int gshmdt(Ghandle h, uint64_t addr)
-{
+int gshmdt(Ghandle h, uint64_t addr) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
@@ -1210,8 +1538,7 @@ int gshmdt(Ghandle h, uint64_t addr)
 
 	return 0;
 
-fail:
-	gdev_mutex_unlock(&gdev->shm_mutex);
+	fail: gdev_mutex_unlock(&gdev->shm_mutex);
 	return -ENOENT;
 }
 
@@ -1219,8 +1546,7 @@ fail:
  * gshmctl():
  * control device shared memory.
  */
-int gshmctl(Ghandle h, int id, int cmd, void *buf)
-{
+int gshmctl(Ghandle h, int id, int cmd, void *buf) {
 	struct gdev_device *gdev = h->gdev;
 	gdev_mem_t *owner;
 	int ret;
@@ -1242,8 +1568,7 @@ int gshmctl(Ghandle h, int id, int cmd, void *buf)
 
 	return 0;
 
-fail:
-	gdev_mutex_unlock(&gdev->shm_mutex);
+	fail: gdev_mutex_unlock(&gdev->shm_mutex);
 	return ret;
 }
 
@@ -1251,10 +1576,9 @@ fail:
  * gref():
  * reference virtual memory from handle @hsrc to handle @hdst.
  */
-uint64_t gref(Ghandle hmaster, uint64_t addr, uint64_t size, Ghandle hslave)
-{
+uint64_t gref(Ghandle hmaster, uint64_t addr, uint64_t size, Ghandle hslave) {
 	gdev_mem_t *mem, *new;
-	
+
 	mem = gdev_mem_lookup_by_addr(hmaster->vas, addr, GDEV_MEM_DEVICE);
 	if (!mem) {
 		/* try to find a host DMA memory object. */
@@ -1274,11 +1598,10 @@ uint64_t gref(Ghandle hmaster, uint64_t addr, uint64_t size, Ghandle hslave)
  * gunref():
  * unreference virtual memory from the shared region.
  */
-int gunref(Ghandle h, uint64_t addr)
-{
+int gunref(Ghandle h, uint64_t addr) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
-	
+
 	mem = gdev_mem_lookup_by_addr(vas, addr, GDEV_MEM_DEVICE);
 	if (!mem) {
 		/* try to find a host DMA memory object. */
@@ -1296,12 +1619,11 @@ int gunref(Ghandle h, uint64_t addr)
  * gphysget():
  * get the physical (PCI) bus address associated with buffer pointer @p
  */
-uint64_t gphysget(Ghandle h, const void *p)
-{
+uint64_t gphysget(Ghandle h, const void *p) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 	uint64_t offset;
-	
+
 	mem = gdev_mem_lookup_by_buf(vas, p, GDEV_MEM_DEVICE);
 	if (!mem) {
 		mem = gdev_mem_lookup_by_buf(vas, p, GDEV_MEM_DMA);
@@ -1309,24 +1631,22 @@ uint64_t gphysget(Ghandle h, const void *p)
 			goto fail;
 	}
 
-	offset = (uint64_t)p - (uint64_t)gdev_mem_getbuf(mem);
+	offset = (uint64_t) p - (uint64_t) gdev_mem_getbuf(mem);
 
 	return gdev_mem_phys_getaddr(mem, offset);
-	
-fail:
-	return 0;
+
+	fail: return 0;
 }
 
 /**
  * gvirtget():
  * get the unified virtual address associated with buffer pointer @p
  */
-uint64_t gvirtget(Ghandle h, const void *p)
-{
+uint64_t gvirtget(Ghandle h, const void *p) {
 	gdev_vas_t *vas = h->vas;
 	gdev_mem_t *mem;
 	uint64_t offset;
-	
+
 	mem = gdev_mem_lookup_by_buf(vas, p, GDEV_MEM_DEVICE);
 	if (!mem) {
 		mem = gdev_mem_lookup_by_buf(vas, p, GDEV_MEM_DMA);
@@ -1334,20 +1654,27 @@ uint64_t gvirtget(Ghandle h, const void *p)
 			goto fail;
 	}
 
-	offset = (uint64_t)p - (uint64_t)gdev_mem_getbuf(mem);
+	offset = (uint64_t) p - (uint64_t) gdev_mem_getbuf(mem);
 
 	return gdev_mem_getaddr(mem) + offset;
-	
-fail:
-	return 0;
+
+	fail: return 0;
 }
 
 /**
  * gdevice_count():
  * get the count of virtual devices
  */
-int gdevice_count(int* result)
-{
+int gdevice_count(int* result) {
 	*result = gdev_getinfo_device_count();
+	return 0;
+}
+
+
+int setSchedParams(struct gdev_handle *h, int blockDIM, int gridDIM, int mem_size) {
+	struct gdev_sched_entity *se = h->se;
+	se->blockDIM += blockDIM;
+	se->gridDIM  += gridDIM;
+	se->mem_size += mem_size;
 	return 0;
 }
