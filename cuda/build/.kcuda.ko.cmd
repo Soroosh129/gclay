@@ -1,1 +1,0 @@
-cmd_/home/soroosh/Project/gdev/cuda/build/kcuda.ko := ld -r -m elf_x86_64 -T /home/soroosh/Project/ubuntu-trusty/scripts/module-common.lds --build-id  -o /home/soroosh/Project/gdev/cuda/build/kcuda.ko /home/soroosh/Project/gdev/cuda/build/kcuda.o /home/soroosh/Project/gdev/cuda/build/kcuda.mod.o
