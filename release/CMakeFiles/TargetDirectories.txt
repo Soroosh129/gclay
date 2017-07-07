@@ -1,3 +1,0 @@
-/home/soroosh/Project/gdev/release/cuda/CMakeFiles/cudump.dir
-/home/soroosh/Project/gdev/release/lib/CMakeFiles/gdev.dir
-/home/soroosh/Project/gdev/release/cuda/CMakeFiles/ucuda.dir
