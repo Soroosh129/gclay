@@ -1,1 +1,0 @@
-cmd_/home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.o := ld -m elf_x86_64   -r -o /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.o /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/main.o /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/memcpy.o 

@@ -1,1 +1,0 @@
-cmd_/home/soroosh/Project/gdev/test/cuda/kernel/mmul/kernel_test.o := ld -m elf_x86_64   -r -o /home/soroosh/Project/gdev/test/cuda/kernel/mmul/kernel_test.o /home/soroosh/Project/gdev/test/cuda/kernel/mmul/main.o /home/soroosh/Project/gdev/test/cuda/kernel/mmul/mmul.o 

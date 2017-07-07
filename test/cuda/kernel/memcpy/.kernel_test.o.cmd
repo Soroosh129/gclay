@@ -1,1 +1,0 @@
-cmd_/home/soroosh/Project/gdev/test/cuda/kernel/memcpy/kernel_test.o := ld -m elf_x86_64   -r -o /home/soroosh/Project/gdev/test/cuda/kernel/memcpy/kernel_test.o /home/soroosh/Project/gdev/test/cuda/kernel/memcpy/main.o /home/soroosh/Project/gdev/test/cuda/kernel/memcpy/memcpy.o 

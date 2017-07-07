@@ -1,1 +1,0 @@
-cmd_/home/soroosh/Project/gdev/test/cuda/kernel/madd_host/kernel_test.o := ld -m elf_x86_64   -r -o /home/soroosh/Project/gdev/test/cuda/kernel/madd_host/kernel_test.o /home/soroosh/Project/gdev/test/cuda/kernel/madd_host/main.o /home/soroosh/Project/gdev/test/cuda/kernel/madd_host/madd_host.o 
