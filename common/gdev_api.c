@@ -594,15 +594,15 @@ int gdev_callback_load_from_device(void *h, uint64_t dst_addr,
 }
 
 static inline void tvsub(struct timespec *x,
-                                                 struct timespec *y,
-                                                 struct timespec *ret)
+		struct timespec *y,
+		struct timespec *ret)
 {
-        ret->tv_sec = x->tv_sec - y->tv_sec;
-        ret->tv_nsec = x->tv_nsec - y->tv_nsec;
-        if (ret->tv_nsec < 0) {
-                ret->tv_sec--;
-                ret->tv_nsec += 1000000;
-        }
+	ret->tv_sec = x->tv_sec - y->tv_sec;
+	ret->tv_nsec = x->tv_nsec - y->tv_nsec;
+	if (ret->tv_nsec < 0) {
+		ret->tv_sec--;
+		ret->tv_nsec += 1000000;
+	}
 }
 
 struct kernel_wrapper
@@ -814,27 +814,28 @@ int gbench(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id, enum
 }
 
 
+
 struct gdev_handle *gopen_consistant(int minor, void *h, int kernel_category) {
 	struct gdev_device *_gdev = ((struct gdev_handle *)h)->gdev;
 	gdev_ctx_t *ctx = ((struct gdev_handle *)h)->ctx;
 	struct gdev_sched_entity *se = NULL;
 #ifndef GDEV_SCHED_DISABLED
-		GDEV_DPRINT("Creating the scheduling entity.\n");
-		GDEV_DPRINT("Gdev handle is %x pre scheduling.\n", h);
-		/* allocate a scheduling entity. */
-		se = gdev_sched_entity_create_smart(_gdev, ctx, NULL, kernel_category);
-		if (!se) {
-			GDEV_PRINT("Failed to allocate scheduling entity\n");
-			goto fail_se;
-		}
-		GDEV_DPRINT("Created the scheduling entity %x.\n", se);
+	GDEV_DPRINT("Creating the scheduling entity.\n");
+	GDEV_DPRINT("Gdev handle is %x pre scheduling.\n", h);
+	/* allocate a scheduling entity. */
+	se = gdev_sched_entity_create_smart(_gdev, ctx, NULL, kernel_category);
+	if (!se) {
+		GDEV_PRINT("Failed to allocate scheduling entity\n");
+		goto fail_se;
+	}
+	GDEV_DPRINT("Created the scheduling entity %x.\n", se);
 
 #endif
-		((struct gdev_device *)_gdev)->pse = se;
-		//gdev = _gdev;
-		//((struct gdev_handle *)h)->gdev = _gdev;
-		((struct gdev_handle *)h)->se = se;
-		return h;
+	((struct gdev_device *)_gdev)->pse = se;
+	//gdev = _gdev;
+	//((struct gdev_handle *)h)->gdev = _gdev;
+	((struct gdev_handle *)h)->se = se;
+	return h;
 #ifndef GDEV_SCHED_DISABLED
 	fail_se: return NULL;
 #endif
@@ -861,11 +862,11 @@ struct gdev_handle *gopen(int minor, int kernel_category) {
 
 	h->pipeline_count = GDEV_PIPELINE_DEFAULT_COUNT;
 	h->chunk_size = GDEV_CHUNK_DEFAULT_SIZE;
-    struct timespec tv;
-    int total;
-    struct timespec tv_total_start, tv_total_end;
+	struct timespec tv;
+	int total;
+	struct timespec tv_total_start, tv_total_end;
 
-    gettimeofday(&tv_total_start, NULL);
+	gettimeofday(&tv_total_start, NULL);
 
 
 	/* open the specified device. */
@@ -874,17 +875,17 @@ struct gdev_handle *gopen(int minor, int kernel_category) {
 		GDEV_PRINT("Failed to open gdev%d\n", minor);
 		goto fail_open;
 	}
-    gettimeofday(&tv_total_end, NULL);
-    tvsub(&tv_total_end, &tv_total_start, &tv);
-    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+	gettimeofday(&tv_total_end, NULL);
+	tvsub(&tv_total_end, &tv_total_start, &tv);
+	total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
-    GDEV_DPRINT("gdev pctx is : %x\n", gdev->pctx);
-    GDEV_DPRINT("gdev is : %x\n", gdev);
+	GDEV_DPRINT("gdev pctx is : %x\n", gdev->pctx);
+	GDEV_DPRINT("gdev is : %x\n", gdev);
 
 
 	if (!gdev->pctx || !gdev->pvas) {
 
-	    GDEV_DPRINT("Creating a primary context.\n");
+		GDEV_DPRINT("Creating a primary context.\n");
 		/* none can access GPU while someone is opening device. */
 		gdev_block_start(gdev);
 
@@ -929,21 +930,21 @@ struct gdev_handle *gopen(int minor, int kernel_category) {
 
 		/* now other users can access the GPU. */
 		gdev_block_end(gdev);
-	    gettimeofday(&tv_total_end, NULL);
-	    tvsub(&tv_total_end, &tv_total_start, &tv);
-	    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+		gettimeofday(&tv_total_end, NULL);
+		tvsub(&tv_total_end, &tv_total_start, &tv);
+		total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
-	    GDEV_DPRINT("Primary context creation took %d total.\n", total);
+		GDEV_DPRINT("Primary context creation took %d total.\n", total);
 	} else {
 		vas = gdev->pvas;
 		ctx = gdev->pctx;
 		se = gdev->pse;
 		dma_mem = gdev->dma_mem;
-	    gettimeofday(&tv_total_end, NULL);
-	    tvsub(&tv_total_end, &tv_total_start, &tv);
-	    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+		gettimeofday(&tv_total_end, NULL);
+		tvsub(&tv_total_end, &tv_total_start, &tv);
+		total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
-	    GDEV_DPRINT("Primary context already exists.\nIt took %d to set it.\n", total);
+		GDEV_DPRINT("Primary context already exists.\nIt took %d to set it.\n", total);
 	}
 	GDEV_DPRINT("vas value is %p.\n", vas);
 	GDEV_DPRINT("Ctx value is %p.\n", ctx);
@@ -956,9 +957,9 @@ struct gdev_handle *gopen(int minor, int kernel_category) {
 	h->ctx = ctx;
 	h->gdev = gdev;
 	h->dev_id = minor;
-    gettimeofday(&tv_total_end, NULL);
-    tvsub(&tv_total_end, &tv_total_start, &tv);
-    total = tv.tv_sec * 1000000 + tv.tv_nsec;
+	gettimeofday(&tv_total_end, NULL);
+	tvsub(&tv_total_end, &tv_total_start, &tv);
+	total = tv.tv_sec * 1000000 + tv.tv_nsec;
 
 
 	GDEV_DPRINT("Opened gdev%d, It took %d.\n", minor,total);
@@ -988,52 +989,52 @@ int gclose(struct gdev_handle *h) {
 	if (!h->gdev || !h->ctx || !h->vas)
 		return -ENOENT;
 
-if(gdev->users==1)
-{
-	/* This is the default implementation similar to the proprietary NVIDIA implementation (Each process would share a single context but different processes have different contexts. */
-	if (gdev->pctx) {
-		/* none can access GPU while someone is closing device. */
-		gdev_block_start(gdev);
+	if(gdev->users==1)
+	{
+		/* This is the default implementation similar to the proprietary NVIDIA implementation (Each process would share a single context but different processes have different contexts. */
+		if (gdev->pctx) {
+			/* none can access GPU while someone is closing device. */
+			gdev_block_start(gdev);
 
 #ifndef GDEV_SCHED_DISABLED
-		if (!h->se)
-			return -ENOENT;
-		/* free the scheduling entity. */
-		gdev_sched_entity_destroy(h->se);
+			if (!h->se)
+				return -ENOENT;
+			/* free the scheduling entity. */
+			gdev_sched_entity_destroy(h->se);
 #endif
 
+			/* fix me: dma is dependent on vas but might be erroneous since we leave redundant parts of dma alone on subsequent calls to gclose */
+			/* free the bounce buffer. */
+			if (h->dma_mem)
+				__free_dma(h->dma_mem, h->pipeline_count);
+
+			/* garbage collection: free all memory left in heap. */
+			gdev_mem_gc(h->vas);
+
+			/* free the objects. */
+			gdev_ctx_free(h->ctx);
+			gdev_vas_free(h->vas);
+
+			gdev->pctx = NULL;
+			gdev->pvas = NULL;
+			gdev->pse = NULL;
+
+
+			gdev_block_end(gdev);
+			gdev_dev_close(h->gdev);
+			GDEV_DPRINT("Closed gdev%d\n", h->dev_id);
+		}
+	}
+	else if (gdev->users > 1)
+	{
+		gdev->users--;
 		/* fix me: dma is dependent on vas but might be erroneous since we leave redundant parts of dma alone on subsequent calls to gclose */
 		/* free the bounce buffer. */
 		if (h->dma_mem)
 			__free_dma(h->dma_mem, h->pipeline_count);
 
-		/* garbage collection: free all memory left in heap. */
-		gdev_mem_gc(h->vas);
-
-		/* free the objects. */
-		gdev_ctx_free(h->ctx);
-		gdev_vas_free(h->vas);
-
-		gdev->pctx = NULL;
-		gdev->pvas = NULL;
-		gdev->pse = NULL;
-
-
-		gdev_block_end(gdev);
-		gdev_dev_close(h->gdev);
-		GDEV_DPRINT("Closed gdev%d\n", h->dev_id);
+		GDEV_DPRINT("The number of current users is %d.\n",gdev->users);
 	}
-}
-else if (gdev->users > 1)
-{
-	gdev->users--;
-	/* fix me: dma is dependent on vas but might be erroneous since we leave redundant parts of dma alone on subsequent calls to gclose */
-	/* free the bounce buffer. */
-	if (h->dma_mem)
-		__free_dma(h->dma_mem, h->pipeline_count);
-
-	GDEV_DPRINT("The number of current users is %d.\n",gdev->users);
-}
 
 
 
@@ -1368,11 +1369,13 @@ int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id) {
 	gdev_schedule_compute(se,0);
 
 	/**
+<<<<<<< HEAD
 	 * Categorizer
 	 */
 	int category = approximate_category(h,kernel,id);
 
 	GDEV_DPRINT("The category for this kernel is %d.\n",category);
+
 
 	/*if( category == 2 ) // Horrible kernel
 	{
@@ -1401,6 +1404,9 @@ int glaunch(struct gdev_handle *h, struct gdev_kernel *kernel, uint32_t *id) {
 			kernel->grid_x *= tmp;
 			kernel->grid_y *= tmp;
 		}
+
+	}
+
 	}*/
 
 	gettimeofday(&tv_total_end, NULL);
