@@ -1,1 +1,0 @@
-/usr/bin/cc  -DGDEV_SCHED_DISABLED -Wall -O2    CMakeFiles/cudump.dir/cudump/cudump.c.o CMakeFiles/cudump.dir/driver/gdev_cuda.c.o  -o cudump  -L/usr/local/lib -rdynamic 

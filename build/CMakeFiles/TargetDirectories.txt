@@ -1,4 +1,0 @@
-/home/soroosh/Project/gdev/build/cuda/CMakeFiles/cudump.dir
-/home/soroosh/Project/gdev/build/lib/CMakeFiles/gdev.dir
-/home/soroosh/Project/gdev/build/lib/CMakeFiles/gdev_usched_monitor.dir
-/home/soroosh/Project/gdev/build/cuda/CMakeFiles/ucuda.dir
