@@ -36,6 +36,7 @@ int gdev_vcount = 0; /* # of virtual devices. */
 struct gdev_device *gdevs = NULL; /* physical devices */
 struct gdev_device *gdev_vds = NULL; /* virtual devices */
 
+
 int VCOUNT_LIST[GDEV_PHYSICAL_DEVICE_MAX_COUNT] = {
 	GDEV0_VIRTUAL_DEVICE_COUNT,
 	GDEV1_VIRTUAL_DEVICE_COUNT,
@@ -74,7 +75,12 @@ void __gdev_init_device(struct gdev_device *gdev, int id)
 	gdev->current_com = NULL;
 	gdev->current_mem = NULL;
 	gdev->parent = NULL;
-	gdev->priv = NULL;
+	/*gdev->priv = NULL;
+	gdev->pctx = NULL;
+	gdev->pvas = NULL;*/
+	gdev->kernel_health_status = 0;
+	/*gdev->flag_first = 1;
+	GDEV_PRINT("Set flag to %d.\n",gdev->flag_first);*/
 	gdev_time_us(&gdev->credit_com, 0);
 	gdev_time_us(&gdev->credit_mem, 0);
 	gdev_list_init(&gdev->sched_com_list, NULL);
@@ -103,6 +109,8 @@ int gdev_init_device(struct gdev_device *gdev, int id, void *priv)
 	/* FIXME: substract the amount of memory used not for users' data but
 	   this shouldn't be hardcoded. */
 	gdev->mem_size -= 0xc010000;
+	/*gdev->flag_first = 1;
+	GDEV_PRINT("Set flag to %d.\n",gdev->flag_first);*/
 
 	/* host DMA memory size available for users. */
 	gdev_query(gdev, GDEV_QUERY_DMA_MEM_SIZE, &gdev->dma_mem_size);
@@ -132,6 +140,12 @@ int gdev_init_virtual_device(struct gdev_device *gdev, int id, uint32_t weight, 
 	gdev->mem_bw = weight;
 	gdev->mem_sh = weight;
 	gdev->chipset = gdev_phys_get(gdev)->chipset;
+	gdev->pctx = NULL;
+	gdev->pvas = NULL;
+	gdev->dma_mem = NULL;
+	//gdev->flag_first = 1;
+
+	//GDEV_PRINT("Set flag to %d.\n",gdev->flag_first);
 
 	/* create the swap memory object, if configured, for the virtual device. */
 	if (GDEV_SWAP_MEM_SIZE > 0) {

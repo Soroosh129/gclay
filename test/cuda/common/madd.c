@@ -223,7 +223,12 @@ int cuda_test_madd(unsigned int n, char *path)
 	}
 	cuCtxSynchronize();
 	gettimeofday(&tv_exec_end, NULL);
-
+	res = cuLaunchGrid(function, grid_x, grid_y);
+	if (res != CUDA_SUCCESS) {
+		printf("cuLaunchGrid failed: res = %lu\n", (unsigned long)res);
+		return -1;
+	}
+	cuCtxSynchronize();
 	gettimeofday(&tv_d2h_start, NULL);
 	/* download c[] */
 	res = cuMemcpyDtoH(c, c_dev, n*n * sizeof(unsigned int));
@@ -265,11 +270,11 @@ int cuda_test_madd(unsigned int n, char *path)
 		return -1;
 	}
 
-	res = cuCtxDestroy(ctx);
-	if (res != CUDA_SUCCESS) {
-		printf("cuCtxDestroy failed: res = %lu\n", (unsigned long)res);
-		return -1;
-	}
+//	res = cuCtxDestroy(ctx);
+//	if (res != CUDA_SUCCESS) {
+//		printf("cuCtxDestroy failed: res = %lu\n", (unsigned long)res);
+//		return -1;
+//	}
 
 	free(a);
 	free(b);

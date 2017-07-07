@@ -539,6 +539,7 @@ struct gdev_ctx *gdev_raw_ctx_new(struct gdev_device *gdev, struct gdev_vas *vas
 	
 	nouveau_pushbuf_bufctx(push, bufctx);
 	nouveau_pushbuf_validate(push);
+	gdev->pctx = ctx;
 
 	return ctx;
 

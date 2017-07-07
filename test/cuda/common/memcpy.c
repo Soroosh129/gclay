@@ -94,12 +94,12 @@ int cuda_test_memcpy(unsigned int size)
 		return -1;
 	}
 
-	res = cuCtxDestroy(ctx);
+/*	res = cuCtxDestroy(ctx);
 	if (res != CUDA_SUCCESS) {
 		printf("cuCtxDestroy failed: res = %u\n", (unsigned int)res);
 		return -1;
 	}
-
+*/
 	for (i = 0; i < size / 4; i++) {
 		if (in[i] != out[i]) {
 			printf("in[%d] = %u, out[%d] = %u\n",

@@ -168,7 +168,7 @@ static int nv50_launch(struct gdev_ctx *ctx, struct gdev_kernel *k)
 	__gdev_out_ring(ctx, k->block_z ); /* BLOCKDIM_Z */
 
 	__gdev_begin_ring_nv50(ctx, GDEV_SUBCH_NV_COMPUTE, 0x2b4, 1);
-	__gdev_out_ring(ctx, k->block_x * k->block_y * k->block_z); /* BLOCK_ALLOC*/
+	__gdev_out_ring(ctx, k->block_x * k->block_y * k->block_z); /* BLOCK_ALLOC*/ // change of block size will affect here
 
 	/* is this required? */
 	__gdev_begin_ring_nv50(ctx, GDEV_SUBCH_NV_COMPUTE, 0x388, 1);

@@ -267,13 +267,13 @@ int cuda_test_mmul(unsigned int n, char *path)
 		printf("cuModuleUnload failed: res = %lu\n", (unsigned long)res);
 		return -1;
 	}
-
+/*
 	res = cuCtxDestroy(ctx);
 	if (res != CUDA_SUCCESS) {
 		printf("cuCtxDestroy failed: res = %lu\n", (unsigned long)res);
 		return -1;
 	}
-
+*/
 	free(a);
 	free(b);
 	free(c);

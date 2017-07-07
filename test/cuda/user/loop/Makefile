@@ -7,7 +7,7 @@ CFLAGS	= -L /usr/local/gdev/lib64 -I /usr/local/gdev/include
 
 all:
 	$(NVCC) -o loop_gpu.cubin loop_gpu.cu
-	gcc -o $(TARGET) $(CFLAGS) main.c loop.c $(LIBS)
+	gcc -o $(TARGET) $(CFLAGS) main.c loop.c loop_normal.c $(LIBS)
 
 clean:
 	rm -f $(TARGET) *.cubin ./*~

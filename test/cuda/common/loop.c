@@ -163,13 +163,13 @@ int cuda_test_loop(unsigned int n, char *path)
 		printf("cuModuleUnload failed: res = %lu\n", (unsigned long)res);
 		return -1;
 	}
-
+/*
 	res = cuCtxDestroy(ctx);
 	if (res != CUDA_SUCCESS) {
 		printf("cuCtxDestroy failed: res = %lu\n", (unsigned long)res);
 		return -1;
 	}
-
+*/
 	gettimeofday(&tv_total_end, NULL);
 
 	free(data);

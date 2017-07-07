@@ -1,0 +1,1 @@
+/usr/bin/cc  -fPIC -DGDEV_SCHED_DISABLED -Wall -O2   -shared -Wl,-soname,libgdev.so.1 -o libgdev.so.1.0.0 CMakeFiles/gdev.dir/kernel/gdev_lib.c.o 

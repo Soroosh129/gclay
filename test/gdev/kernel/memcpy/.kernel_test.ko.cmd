@@ -1,0 +1,1 @@
+cmd_/home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.ko := ld -r -m elf_x86_64 -T /home/soroosh/Project/ubuntu-trusty/scripts/module-common.lds --build-id  -o /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.ko /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.o /home/soroosh/Project/gdev/test/gdev/kernel/memcpy/kernel_test.mod.o

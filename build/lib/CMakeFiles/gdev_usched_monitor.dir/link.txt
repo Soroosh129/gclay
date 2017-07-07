@@ -1,0 +1,1 @@
+/usr/bin/cc  -Wall -O2    CMakeFiles/gdev_usched_monitor.dir/user/usched/gdev_usched_monitor_init.c.o CMakeFiles/gdev_usched_monitor.dir/user/usched/gdev_usched_monitor.c.o  -o gdev_usched_monitor  -L/usr/local/lib -rdynamic -ldrm -ldrm_nouveau -lpthread -Wl,-rpath,/usr/local/lib: 

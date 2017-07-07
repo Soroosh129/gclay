@@ -58,18 +58,29 @@
  */
 #define GDEV_INSTANCES_LIMIT 32
 
+struct gdev_task {
+	void *sys_task;
+	void *kernel;
+};
+
 struct gdev_sched_entity {
 	struct gdev_device *gdev; /* associated Gdev (virtual) device */
-	void *task; /* private task structure */
+	struct gdev_task *task;
 	gdev_ctx_t *ctx; /* holder context */
 	int prio; /* general priority */
 	int rt_prio; /* real-time priority */
 	struct gdev_list list_entry_com; /* entry to compute scheduler list */
-	struct gdev_list list_entry_mem; /* entry to memory scheduler list */
-	struct gdev_time last_tick_com; /* last tick of compute execution */
-	struct gdev_time last_tick_mem; /* last tick of memory transfer */
+	struct gdev_list list_entry_mem; /* entry to memory scheduler list  */
+	struct gdev_time last_tick_com;  /* last tick of compute execution  */
+	struct gdev_time last_tick_mem;  /* last tick of memory transfer    */
 	int launch_instances;
 	int memcpy_instances;
+	struct gdev_task *async_tasks[20];
+	void *kernel[10]; /* Very sloppy pointer to the async kernels. '-_- */
+	int blockDIM;
+	int gridDIM;
+	int mem_size;
+	int utilization; // From 0..100
 };
 
 struct gdev_vsched_policy {
@@ -84,15 +95,20 @@ struct gdev_vsched_policy {
 int gdev_init_scheduler(struct gdev_device *gdev);
 void gdev_exit_scheduler(struct gdev_device *gdev);
 
-struct gdev_sched_entity *gdev_sched_entity_create(struct gdev_device *gdev, gdev_ctx_t *ctx);
+struct gdev_sched_entity *gdev_sched_entity_create(struct gdev_device *gdev, gdev_ctx_t *ctx, void *kernel);
+//struct gdev_sched_entity *gdev_sched_entity_create_smart(struct gdev_device *gdev);
+struct gdev_sched_entity *gdev_sched_entity_create_smart(struct gdev_device *gdev, gdev_ctx_t *ctx, void *kernel, int kernel_category);
 void gdev_sched_entity_destroy(struct gdev_sched_entity *se);
 
-void gdev_schedule_compute(struct gdev_sched_entity *se);
+void gdev_schedule_compute(struct gdev_sched_entity *se, int TEST_RUNTIME);
 void gdev_select_next_compute(struct gdev_device *gdev);
 void gdev_schedule_memory(struct gdev_sched_entity *se);
 void gdev_select_next_memory(struct gdev_device *gdev);
 void gdev_replenish_credit_compute(struct gdev_device *gdev);
 void gdev_replenish_credit_memory(struct gdev_device *gdev);
+
+//int compute_utilization(void *main_task);
+int compute_utilization(void *main_task, void *second_task);
 
 extern struct gdev_sched_entity *sched_entity_ptr[GDEV_CONTEXT_MAX_COUNT];
 extern gdev_lock_t global_sched_lock;

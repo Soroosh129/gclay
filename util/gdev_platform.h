@@ -43,8 +43,10 @@
 #include <string.h> /* memcpy, etc. */
 #endif
 
+#define GDEV_DEBUG_PRINT 1
+
 #ifdef __KERNEL__ /* OS functions */
-#define GDEV_PRINT(fmt, arg...) printk("[gdev] " fmt, ##arg)
+#define GDEV_PRINT(fmt, arg...) printk("[gstream] " fmt, ##arg)
 #ifdef GDEV_DEBUG_PRINT
 #define GDEV_DPRINT(fmt, arg...) printk("[gdev:debug] " fmt, ##arg)
 #else
@@ -62,7 +64,7 @@
 #define IOWRITE32(val, addr) iowrite32(val, (void /*__force __iomem*/ *)addr)
 
 #else /* user-space functions */
-#define GDEV_PRINT(fmt, arg...) fprintf(stderr, "[gdev] " fmt, ##arg)
+#define GDEV_PRINT(fmt, arg...) fprintf(stderr, "[gstream] " fmt, ##arg)
 #ifdef GDEV_DEBUG_PRINT
 #define GDEV_DPRINT(fmt, arg...)					\
 	if (GDEV_DEBUG_PRINT)							\

@@ -58,12 +58,13 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 	if (!module || !fname)
 		return CUDA_ERROR_INVALID_VALUE;
 
+
 	res = cuCtxGetCurrent(&ctx);
 	if (res != CUDA_SUCCESS)
 		return res;
-
+	GDEV_DPRINT("Got the current context.\n");
 	handle = ctx->gdev_handle;
-
+	GDEV_DPRINT("Got the gdev handle %x.\n", handle);
 	if (!(mod = MALLOC(sizeof(*mod)))) {
 		GDEV_PRINT("Failed to allocate memory for module\n");
 		res = CUDA_ERROR_OUT_OF_MEMORY;
@@ -75,7 +76,7 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		GDEV_PRINT("Failed to load cubin\n");
 		goto fail_load_cubin;
 	}
-
+	GDEV_DPRINT("Loaded the cubin.\n");
 	/* check compatibility of code and device. */
 	if ((ctx->cuda_info.chipset & 0xf0) !=  mod->arch) {
 	    if ((ctx->cuda_info.chipset & 0xf0) !=  0xe0 &&
@@ -90,6 +91,7 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		GDEV_PRINT("Failed to construct kernels\n");
 		goto fail_construct_kernels;
 	}
+	GDEV_DPRINT("Constructed the kernel.\n");
 
 	/* allocate (local) static data memory. */
 	if (mod->sdata_size > 0) {
@@ -111,6 +113,8 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		GDEV_PRINT("Failed to allocate device memory for code\n");
 		goto fail_gmalloc_code;
 	}
+
+	GDEV_DPRINT("Allocated the memory for code and constant.\n");
 
 	/* locate the code information for each kernel. */
 	if ((res = gdev_cuda_locate_code(mod)) != CUDA_SUCCESS) {
@@ -134,6 +138,7 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		GDEV_PRINT("Failed to copy code to host\n");
 		goto fail_memcpy_code;
 	}
+	GDEV_DPRINT("Done with memcpy.\n");
 
 	/* transfer the code and constant memory onto the device. */
 	if (gmemcpy_to_device(handle, mod->code_addr, bnc_buf, mod->code_size)) {
@@ -142,6 +147,7 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		goto fail_gmemcpy_code;
 	}
 
+	GDEV_DPRINT("Done with transfer.\n");
 	/* free the bounce buffer now. */
 	FREE(bnc_buf);
 

@@ -44,7 +44,7 @@ int gdev_device_count = 0;
 static Ghandle __gopen(int minor)
 {
 #if 0
-	return gopen(minor);
+	return gopen(minor, -1);
 #else
 	Ghandle handle = NULL;
 	CUcontext ctx;
@@ -55,7 +55,7 @@ static Ghandle __gopen(int minor)
 		}
 	}
 	if (handle == NULL)
-		handle = gopen(minor);
+		handle = gopen(minor, -1);
 	return handle;
 #endif
 }
@@ -245,7 +245,7 @@ CUresult cuDeviceGet(CUdevice *device, int ordinal)
  * CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_VALUE, 
  * CUDA_ERROR_INVALID_DEVICE 
  */
-CUresult cuDeviceGetAttribute(int *pi, CUdevice_attribute attrib, CUdevice dev)
+CUresult cuDeviceGetAttribute(int *pi, CUdevice_attribute attrib, CUdevice dev, int consistant_gdev, void * _handle)
 {
 	int res = CUDA_SUCCESS;
 	Ghandle handle;
@@ -254,9 +254,14 @@ CUresult cuDeviceGetAttribute(int *pi, CUdevice_attribute attrib, CUdevice dev)
 	if (!gdev_initialized)
 		return CUDA_ERROR_NOT_INITIALIZED;
 
+	if(!consistant_gdev)
+	{
 	handle = __gopen((int)dev);
 	if (handle == NULL)
 		return CUDA_ERROR_INVALID_CONTEXT;
+	}
+	else
+		handle = (Ghandle)_handle;
 
 	if (gquery(handle, GDEV_QUERY_CHIPSET, &chipset)) {
 		__gclose(handle);
@@ -997,45 +1002,45 @@ CUresult cuDeviceGetProperties(CUdevprop *prop, CUdevice dev)
 	}
 
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK, dev, 0, NULL);
 	prop->maxThreadsPerBlock = val; 
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, dev, 0, NULL);
 	prop->maxThreadsDim[0] = val;
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, dev, 0, NULL);
 	prop->maxThreadsDim[1] = val;
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, dev, 0, NULL);
 	prop->maxThreadsDim[2] = val;
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, dev, 0, NULL);
 	prop->maxGridSize[0] = val; 
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, dev, 0, NULL);
 	prop->maxGridSize[1] = val; 
 	val = 1;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, dev, 0, NULL);
 	prop->maxGridSize[2] = val; 
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK, dev, 0, NULL);
 	prop->sharedMemPerBlock = val;
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY, dev, 0, NULL);
 	prop->totalConstantMemory = val;
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_WARP_SIZE, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_WARP_SIZE, dev, 0, NULL);
 	prop->SIMDWidth = val;
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_PITCH, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_PITCH, dev, 0, NULL);
 	prop->memPitch = val;
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK, dev, 0, NULL);
 	prop->regsPerBlock = val;
 	/* FIXME */
 	prop->clockRate = 0;
 	val = 0;
-	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT, dev);
+	cuDeviceGetAttribute(&val, CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT, dev, 0, NULL);
 	prop->textureAlign = val;
 
 	goto end;

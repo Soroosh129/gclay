@@ -39,10 +39,14 @@
 /* Gdev handle members are not exposed to users. */
 typedef struct gdev_handle* Ghandle;
 
+
+enum BENCHMARK_MODE { EULER, LOG, APPROX, BINARY};
+
 /**
  * Gdev APIs:
  */
-Ghandle gopen(int minor);
+Ghandle gopen_consistant(int minor, void *gdev, int kernel_category);
+Ghandle gopen(int minor, int kernel_category);
 int gclose(Ghandle h);
 uint64_t gmalloc(Ghandle h, uint64_t size);
 uint64_t gfree(Ghandle h, uint64_t addr);
@@ -61,6 +65,9 @@ int gmemcpy_user_from_device_async(Ghandle h, void *dst_buf, uint64_t src_addr, 
 int gmemcpy(Ghandle h, uint64_t dst_addr, uint64_t src_addr, uint64_t size);
 int gmemcpy_async(Ghandle h, uint64_t dst_addr, uint64_t src_addr, uint64_t size, uint32_t *id);
 int glaunch(Ghandle h, struct gdev_kernel *kernel, uint32_t *id);
+int glaunch_async(Ghandle h, struct gdev_kernel *kernel, uint32_t *id);
+int gbench(Ghandle h, struct gdev_kernel *kernel, uint32_t *id, enum BENCHMARK_MODE mode, int stride);
+int approximate_category(Ghandle h, struct gdev_kernel *kernel, uint32_t *id);
 int gsync(Ghandle h, uint32_t id, struct gdev_time *timeout);
 int gbarrier(Ghandle h);
 int gquery(Ghandle h, uint32_t type, uint64_t *result);
@@ -75,6 +82,10 @@ uint64_t gphysget(Ghandle h, const void *p);
 uint64_t gvirtget(Ghandle h, const void *p);
 int gdevice_count(int* result);
 
+/* Set 	blockDIM
+		gridDIM
+		mem_size */
+int setSchedParams(Ghandle h, int blockDIM, int gridDIM, int mem_size);
 
 /**
  * tuning types for Gdev resource management parameters.
@@ -92,6 +103,7 @@ int gdevice_count(int* result);
 #define GDEV_QUERY_AGP_SIZE 5
 #define GDEV_QUERY_PCI_VENDOR 6
 #define GDEV_QUERY_PCI_DEVICE 7
+#define GDEV_QUERY_CUDA_THREAD_BLOCK_LIMIT 8
 
 /**
  * IPC commands:
@@ -99,5 +111,6 @@ int gdevice_count(int* result);
 #define GDEV_IPC_STAT 1
 #define GDEV_IPC_SET 2
 #define GDEV_IPC_RMID 3
+
 
 #endif

@@ -193,8 +193,8 @@ static void __display(void)
 	if(se_cu->list_entry_com.next!=0){
 	    printf("se#%d!",i);
 	}
-
     }
+	printf("The flag first is set to %d.\n",p->flag_first);
     printf("\n");
 }
 
@@ -219,8 +219,8 @@ int main(int argc, char *argv[])
     gdev_count = 1; //fix this 
     /* get the number of virtual devices. */
     if (argc == 1){
-	GDEV_PRINT("Use 2 virtual device (default)\n");
-	*_gdev_vcount = 2; //fix this
+	GDEV_PRINT("Use 1 virtual device (default)\n");
+	*_gdev_vcount = 1; //fix this
     }else if (argc == 2){
 	GDEV_PRINT("Use %d virtual device\n",atoi(argv[1]));
 	*_gdev_vcount = atoi(argv[1]);

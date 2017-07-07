@@ -54,7 +54,7 @@ retry:
 		schedule_timeout(5);
 		goto retry;
 	    }
-	    phys->users++; 
+	    phys->users++;
 	    gdev_unlock(&phys->global_lock);
 	}
 #endif
@@ -178,7 +178,7 @@ struct gdev_ctx *gdev_raw_ctx_new(struct gdev_device *gdev, struct gdev_vas *vas
 		goto fail_notify_alloc;
 	ctx->notify.bo = nbo.priv;
 	ctx->notify.addr = nbo.addr;
-	
+
 	/* compute desc buffer.
 	 * In fact, it must be created for each kernel launch.
 	 * need fix.
@@ -226,8 +226,9 @@ struct gdev_ctx *gdev_raw_ctx_new(struct gdev_device *gdev, struct gdev_vas *vas
 	ctx->pdata = (void *)pdata;
 #endif
 
+	gdev->pctx = ctx;
 	return ctx;
-	
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 #if 0 /* un-necessary */
 fail_comp:
@@ -256,7 +257,7 @@ void gdev_raw_ctx_free(struct gdev_ctx *ctx)
 	struct gdev_drv_vspace vspace;
 	struct gdev_drv_chan chan;
 	struct gdev_drv_bo fbo, nbo, dbo;
-	struct gdev_vas *vas = ctx->vas; 
+	struct gdev_vas *vas = ctx->vas;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 	struct gdev_drv_nvidia_pdata *pdata = (struct gdev_drv_nvidia_pdata *)ctx->pdata;
 #endif
@@ -323,7 +324,7 @@ static inline struct gdev_mem *__gdev_raw_mem_alloc(struct gdev_vas *vas, uint64
 	mem->map = bo.map;
 	mem->bo = bo.priv;
 	mem->pdata = (void *)drm;
-	
+
 	return mem;
 
 fail_bo_alloc:
@@ -518,7 +519,7 @@ void gdev_raw_mem_unmap(struct gdev_mem *mem, void *map)
 	bo.addr = mem->addr; /* not really used. */
 	bo.size = mem->size; /* not really used. */
 	bo.map = mem->map;
-	
+
 	gdev_drv_bo_unmap(&bo);
 }
 
@@ -577,7 +578,7 @@ int gdev_raw_read(struct gdev_mem *mem, void *buf, uint64_t addr, uint32_t size)
 	bo.map = mem->map;
 
 	gdev_drv_read(drm, &vspace, &bo, offset, size, buf);
-		
+
 	return 0;
 }
 

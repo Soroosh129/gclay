@@ -134,9 +134,12 @@ CUresult cuFuncSetSharedSize(CUfunction hfunc, unsigned int bytes)
  * CUDA_ERROR_LAUNCH_FAILED, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES, 
  * CUDA_ERROR_LAUNCH_TIMEOUT, CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING 
  */
-CUresult cuLaunch(CUfunction f)
+CUresult cuLaunch(CUfunction f, CUstream hStream)
 {
-	return cuLaunchGrid(f, 1, 1);
+	if(hStream->number == 0)
+		return cuLaunchGrid(f, 1, 1);
+	else
+		return cuLaunchGridAsync(f,1,1,hStream);
 }
 
 /**
@@ -210,7 +213,53 @@ CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
 CUresult cuLaunchGridAsync
 (CUfunction f, int grid_width, int grid_height, CUstream hStream)
 {
-	GDEV_PRINT("cuLaunchGridAsync: Not Implemented Yet\n");
+	CUresult res;
+	struct CUfunc_st *func = f;
+	struct CUmod_st *mod = func->mod;
+	struct CUctx_st *cur;
+	struct CUctx_st *ctx = mod->ctx;
+	struct gdev_kernel *k;
+	struct gdev_cuda_fence *fence;
+	Ghandle handle;
+
+	if (!gdev_initialized)
+		return CUDA_ERROR_NOT_INITIALIZED;
+
+	res = cuCtxGetCurrent(&cur);
+	if (res != CUDA_SUCCESS)
+		return res;
+
+	if (!ctx || ctx != cur)
+		return CUDA_ERROR_INVALID_CONTEXT;
+	if (!func || grid_width <= 0 || grid_height <= 0)
+		return CUDA_ERROR_INVALID_VALUE;
+	if (!(fence = (struct gdev_cuda_fence *)MALLOC(sizeof(*fence))))
+		return CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES;
+
+	k = &func->kernel;
+	k->grid_x = grid_width;
+	k->grid_y = grid_height;
+	k->grid_z = 1;
+	k->grid_id = ++ctx->launch_id;
+	k->name = func->raw_func.name;
+
+
+#ifdef GDEV_DRIVER_NOUVEAU /* this is a quick hack until Nouveau supports flexible vspace */
+	k->smem_base = 0xe << 24;
+	k->lmem_base = 0xf << 24;
+#else
+	k->smem_base = gdev_cuda_align_base(0);
+	k->lmem_base = k->smem_base + gdev_cuda_align_base(k->smem_size);
+#endif
+
+	handle = cur->gdev_handle;
+
+	if (glaunch_async(handle, k, &fence->id))
+		return CUDA_ERROR_LAUNCH_FAILED;
+	fence->addr_ref = 0; /* no address to unreference later. */
+	gdev_list_init(&fence->list_entry, fence);
+	gdev_list_add(&fence->list_entry, &ctx->sync_list);
+
 	return CUDA_SUCCESS;
 }
 
@@ -311,6 +360,7 @@ CUresult cuLaunchKernel
  unsigned int sharedMemBytes, CUstream hStream, 
  void **kernelParams, void **extra)
 {
+	GDEV_DPRINT("cuLaunchKernel: Start.\n");
 	struct gdev_cuda_raw_func *rf;
 	struct gdev_cuda_param *param_data;
 	CUresult res;
@@ -342,12 +392,22 @@ CUresult cuLaunchKernel
 		cuParamSetv(f, offset, p, size);
 		param_data = param_data->next;
 	}
-
+	GDEV_DPRINT("cuLaunchKernel: Finished setting kernel params.\n");
 	res = cuParamSetSize(f, rf->param_size);
 	if (res != CUDA_SUCCESS)
 		return res;
 
-	res = cuLaunchGrid(f, gridDimX, gridDimY);
+	GDEV_DPRINT("cuLaunchKernel: cuParamSetSize done.\n");
+	/*if(hStream->number == 0)
+	{*/
+		GDEV_DPRINT("cuLaunchKernel: Launching sync grid.\n");
+		res = cuLaunchGrid(f, gridDimX, gridDimY);
+	/*}
+	else
+	{
+		GDEV_DPRINT("cuLaunchKernel: Launching async grid.\n");
+		res = cuLaunchGridAsync(f, gridDimX, gridDimY, hStream);
+	}*/
 	if (res != CUDA_SUCCESS)
 		return res;
 

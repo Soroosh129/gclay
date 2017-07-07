@@ -1017,7 +1017,7 @@ CUresult cuInit(unsigned int Flags);
 /* Device Management */
 CUresult cuDeviceComputeCapability(int *major, int *minor, CUdevice dev);
 CUresult cuDeviceGet(CUdevice *device, int ordinal);
-CUresult cuDeviceGetAttribute(int *pi, CUdevice_attribute attrib, CUdevice dev);
+CUresult cuDeviceGetAttribute(int *pi, CUdevice_attribute attrib, CUdevice dev, int consistant_gdev, void* _handle);
 CUresult cuDeviceGetCount(int *count);
 CUresult cuDeviceGetName(char *name, int len, CUdevice dev);
 CUresult cuDeviceGetProperties(CUdevprop *prop, CUdevice dev);
@@ -1036,7 +1036,7 @@ CUresult cuDriverGetVersion (int *driverVersion);
 
 /* Context Management */
 CUresult cuCtxAttach(CUcontext *pctx, unsigned int flags);
-CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev);
+CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev, int consistant_gdev, int kernel_category);
 CUresult cuCtxDestroy(CUcontext ctx);
 CUresult cuCtxDetach(CUcontext ctx);
 CUresult cuCtxGetApiVersion(CUcontext ctx, unsigned int *version);
@@ -1065,7 +1065,7 @@ CUresult cuModuleUnload(CUmodule hmod);
 CUresult cuFuncGetAttribute(int *pi, CUfunction_attribute attrib, CUfunction hfunc);
 CUresult cuFuncSetBlockShape(CUfunction hfunc, int x, int y, int z);
 CUresult cuFuncSetSharedSize(CUfunction hfunc, unsigned int bytes);
-CUresult cuLaunch(CUfunction f);
+CUresult cuLaunch(CUfunction f, CUstream hStream);
 CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height);
 CUresult cuLaunchGridAsync(CUfunction f, int grid_width, int grid_height, CUstream hStream);
 CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream, void **kernelParams, void **extra);

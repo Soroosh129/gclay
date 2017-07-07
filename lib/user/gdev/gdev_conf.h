@@ -55,6 +55,6 @@
 
 //#define GDEV_SCHED_DISABLED
 
-// #define GDEV_DEBUG_PRINT
+//#define GDEV_DEBUG_PRINT 1
 
 #endif
